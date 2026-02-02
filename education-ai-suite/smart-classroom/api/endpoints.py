@@ -427,21 +427,20 @@ def stop_video_analytics_pipeline(
 
 
 @router.get("/class-statistics")
-def get_class_statistics(x_session_id: Optional[str] = Header(None)):
+async def get_class_statistics(x_session_id: Optional[str] = Header(None)):
     """
-    Get class statistics after class
+    Get class statistics with real-time streaming updates
 
-    Returns:
-        JSON statistics data, example output:
-            {
-                "student_count": 99,
-                "stand_count": 99,
-                "raise_up_count": 99,
-                "stand_reid": [
-                    {"student_id": 1, "count": 15},
-                    {"student_id": 2, "count": 23}
-                ]
-            }
+    Returns streaming JSON data with statistics updated every 5 seconds:
+        {
+            "student_count": 99,
+            "stand_count": 99,
+            "raise_up_count": 99,
+            "stand_reid": [
+                {"student_id": 1, "count": 15},
+                {"student_id": 2, "count": 23}
+            ]
+        }
     """
     if not x_session_id:
         raise HTTPException(
@@ -454,24 +453,35 @@ def get_class_statistics(x_session_id: Optional[str] = Header(None)):
             detail=f"No video analytics service found for session {x_session_id}",
         )
 
-    try:
-        service = va_services[x_session_id]
+    service = va_services[x_session_id]
 
-        # Get the front_posture.txt file path
-        project_config = RuntimeConfig.get_section("Project")
-        location = project_config.get("location", "outputs")
-        name = project_config.get("name", "default")
-        output_dir = os.path.join(location, name, x_session_id, "va")
-        front_posture_file = os.path.join(output_dir, "front_posture.txt")
+    # Get the front_posture.txt file path
+    project_config = RuntimeConfig.get_section("Project")
+    location = project_config.get("location", "outputs")
+    name = project_config.get("name", "default")
+    output_dir = os.path.join(location, name, x_session_id, "va")
+    front_posture_file = os.path.join(output_dir, "front_posture.txt")
 
-        # Get pose statistics
-        stats = service.get_pose_stats(front_posture_file)
+    async def stream_statistics():
+        stats_state = None  # Will hold the state for incremental processing
 
-        return JSONResponse(content=stats, status_code=200)
+        try:
+            while True:
+                # Get incremental statistics
+                stats, stats_state = service.get_pose_stats(
+                    front_posture_file, stats_state
+                )
 
-    except Exception as e:
-        logger.error(f"Error getting class statistics: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+                yield json.dumps(stats) + "\n"
+
+                # Wait 5 seconds before next update
+                await asyncio.sleep(5)
+
+        except Exception as e:
+            logger.error(f"Error streaming class statistics: {e}")
+            yield json.dumps({"error": str(e)}) + "\n"
+
+    return StreamingResponse(stream_statistics(), media_type="application/json")
 
 
 def register_routes(app: FastAPI):

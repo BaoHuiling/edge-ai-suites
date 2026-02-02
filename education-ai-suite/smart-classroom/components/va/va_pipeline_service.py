@@ -918,287 +918,301 @@ class VideoAnalyticsPipelineService:
                     pass
             self.pipeline_log_handles.clear()
 
-    def get_pose_stats(self, front_posture_file: str = "outputs/front_posture.txt") -> Dict:
+    def get_pose_stats(
+        self, front_posture_file: str, previous_state: Optional[Dict] = None
+    ) -> tuple[Dict, Dict]:
         """
-        Analyze front_posture.txt and generate pose statistics based on pose transitions
+        Incrementally analyze front_posture.txt and generate pose statistics
+        Only processes new lines since last call, reusing previous results
         
         Args:
             front_posture_file: Path to front_posture.txt file
+            previous_state: State from previous call (contains processed_lines, 
+            frames, counters, etc.)
             
         Returns:
-            Dictionary with statistics:
-            - student_count: Average person count
-            - stand_count: Count of stand transitions
-            - raise_up_count: Count of raise up transitions
-            - stand_reid: List of student IDs with their stand transition counts
+            Tuple of (statistics_dict, new_state_dict):
+            - statistics: Current statistics with all data up to now
+                - student_count: Average person count
+                - stand_count: Count of stand transitions
+                - raise_up_count: Count of raise up transitions
+                - stand_reid: List of student IDs with their stand transition counts
+            - state: State to pass to next call for incremental processing
         """
         posture_file = Path(front_posture_file)
 
+        # Initialize state if first call
+        if previous_state is None:
+            previous_state = {
+                "processed_lines": 0,
+                "frames": [],
+                "student_states": {},
+                "student_stand_counts": {},
+                "student_raise_counts": {},
+                "unidentified_objects": [],
+                "total_raise_count_no_id": 0,
+            }
+
         if not posture_file.exists():
-            self.logger.error(f"Front posture file not found: {posture_file}")
             return {
                 "student_count": 0,
                 "stand_count": 0,
                 "raise_up_count": 0,
-                "stand_reid": []
-            }
+                "stand_reid": [],
+            }, previous_state
 
         try:
-            # Read all lines
+            # Read only new lines since last processed
             with open(posture_file, "r") as f:
-                lines = f.readlines()
+                all_lines = f.readlines()
 
-            if not lines:
-                self.logger.warning("Front posture file is empty")
-                return {
-                    "student_count": 0,
-                    "stand_count": 0,
-                    "raise_up_count": 0,
-                    "stand_reid": []
-                }
+            processed_lines = previous_state["processed_lines"]
+            new_lines = all_lines[processed_lines:]
 
-            # Parse JSON objects
-            frames = []
-            for line in lines:
+            if not new_lines:
+                # No new data, return previous stats
+                frames = previous_state["frames"]
+                if not frames:
+                    return {
+                        "student_count": 0,
+                        "stand_count": 0,
+                        "raise_up_count": 0,
+                        "stand_reid": [],
+                    }, previous_state
+
+                # Recalculate stats from existing data
+                return (
+                    self._calculate_stats_from_frames(
+                        frames,
+                        previous_state["student_stand_counts"],
+                        previous_state["student_raise_counts"],
+                        previous_state["total_raise_count_no_id"],
+                    ),
+                    previous_state,
+                )
+
+            # Parse new JSON objects
+            for line in new_lines:
                 line = line.strip()
                 if line:
                     try:
                         obj = json.loads(line)
-                        frames.append(obj)
+                        previous_state["frames"].append(obj)
                     except json.JSONDecodeError:
                         continue
 
-            if not frames:
-                self.logger.warning("No valid JSON frames found")
-                return {
-                    "student_count": 0,
-                    "stand_count": 0,
-                    "raise_up_count": 0,
-                    "stand_reid": []
-                }
+            # Update processed line count
+            previous_state["processed_lines"] = len(all_lines)
 
-            # Helper function to calculate IoU (Intersection over Union) between two bounding boxes
-            def calculate_iou(bbox1, bbox2):
-                """Calculate IoU between two bounding boxes"""
-                x1_min = bbox1.get("x_min", 0)
-                y1_min = bbox1.get("y_min", 0)
-                x1_max = bbox1.get("x_max", 0)
-                y1_max = bbox1.get("y_max", 0)
+            # Process new frames with state tracking
+            self._process_frames_incremental(previous_state)
 
-                x2_min = bbox2.get("x_min", 0)
-                y2_min = bbox2.get("y_min", 0)
-                x2_max = bbox2.get("x_max", 0)
-                y2_max = bbox2.get("y_max", 0)
+            # Calculate and return current statistics
+            stats = self._calculate_stats_from_frames(
+                previous_state["frames"],
+                previous_state["student_stand_counts"],
+                previous_state["student_raise_counts"],
+                previous_state["total_raise_count_no_id"]
+            )
 
-                # Calculate intersection
-                x_left = max(x1_min, x2_min)
-                y_top = max(y1_min, y2_min)
-                x_right = min(x1_max, x2_max)
-                y_bottom = min(y1_max, y2_max)
-
-                if x_right < x_left or y_bottom < y_top:
-                    return 0.0
-
-                intersection = (x_right - x_left) * (y_bottom - y_top)
-
-                # Calculate union
-                area1 = (x1_max - x1_min) * (y1_max - y1_min)
-                area2 = (x2_max - x2_min) * (y2_max - y2_min)
-                union = area1 + area2 - intersection
-
-                if union == 0:
-                    return 0.0
-
-                return intersection / union
-
-            # Calculate statistics
-
-            # 1. Student count at 60s, 120s, 180s (average)
-            # Assuming 15 FPS: 60s = 900 frames, 120s = 1800 frames, 180s = 2700 frames
-            target_frames = [900, 1800, 2700]
-            person_counts = []
-
-            if len(frames) < max(target_frames):
-                target_frames = [ len(frames) - 1 ]
-
-            for target_idx in target_frames:
-                if target_idx < len(frames):
-                    frame = frames[target_idx]
-                    objects = frame.get("objects", [])
-                    # Count objects with non-zero bounding box
-                    count = sum(1 for obj in objects 
-                              if obj.get("detection", {}).get("bounding_box", {}).get("x_max", 0) > 0)
-                    person_counts.append(count)
-
-            # Average student count
-            student_count = int(sum(person_counts) / len(person_counts)) if person_counts else 0
-
-            # 2. Track pose transitions with robustness
-            # Minimum frames to confirm state change (at 15 FPS, 3 frames = 0.2 seconds)
-            MIN_FRAMES_FOR_TRANSITION = 3
-            IOU_THRESHOLD = 0.3  # IoU threshold for matching objects without ID
-
-            # State tracking for students with IDs
-            # Note: IDs are only assigned when students are in "stand" or "stand_raise_up" poses
-            # So we track when a student ID first appears (stand up event)
-            student_states = {}  # {student_id: {"last_seen_frame": int, "is_raising": bool, "raise_buffer": int}}
-            student_stand_counts = {}
-            student_raise_counts = {}
-
-            # State tracking for objects without IDs (using ROI matching)
-            unidentified_objects = []  # [{bbox, is_raising, raise_buffer, raise_count}]
-            total_raise_count_no_id = 0
-
-            for frame_idx, frame in enumerate(frames):
-                objects = frame.get("objects", [])
-
-                # Track which student IDs were seen this frame
-                seen_student_ids = set()
-
-                # Track which unidentified objects were matched this frame
-                matched_unidentified = set()
-
-                for obj in objects:
-                    detection = obj.get("detection", {})
-                    label = detection.get("label", "")
-                    student_id = obj.get("id", 0)
-                    bbox = detection.get("bounding_box", {})
-
-                    # Skip invalid detections (zero bounding box)
-                    if bbox.get("x_max", 0) == 0:
-                        continue
-
-                    # Determine current pose state
-                    is_standing = label in ["stand", "stand_raise_up"]
-                    is_raising = label in ["sit_raise_up", "stand_raise_up"]
-
-                    # Handle students with IDs (they are standing)
-                    if student_id > 0:
-                        seen_student_ids.add(student_id)
-
-                        # First time seeing this student ID (or reappearing after absence) - just stood up
-                        if student_id not in student_states:
-                            student_states[student_id] = {
-                                "last_seen_frame": frame_idx,
-                                "is_raising": is_raising,
-                                "raise_buffer": 0
-                            }
-                            # Increment stand count or initialize to 1 if first time
-                            if student_id not in student_stand_counts:
-                                student_stand_counts[student_id] = 1
-                            else:
-                                student_stand_counts[student_id] += 1
-
-                            # Initialize raise count if needed
-                            if student_id not in student_raise_counts:
-                                student_raise_counts[student_id] = 0
-                        else:
-                            # Update last seen frame
-                            state = student_states[student_id]
-                            state["last_seen_frame"] = frame_idx
-
-                            # Raising state transition with buffer
-                            if is_raising != state["is_raising"]:
-                                state["raise_buffer"] += 1
-                                if state["raise_buffer"] >= MIN_FRAMES_FOR_TRANSITION:
-                                    # Confirmed transition
-                                    if is_raising:  # Transition to raising
-                                        student_raise_counts[student_id] += 1
-                                    state["is_raising"] = is_raising
-                                    state["raise_buffer"] = 0
-                            else:
-                                state["raise_buffer"] = 0
-
-                    # Handle students without IDs (only track raising)
-                    else:
-                        # Try to match with existing unidentified objects using IoU
-                        best_match_idx = -1
-                        best_iou = 0
-
-                        for idx, unid_obj in enumerate(unidentified_objects):
-                            if idx in matched_unidentified:
-                                continue
-                            iou = calculate_iou(bbox, unid_obj["bbox"])
-                            if iou > best_iou and iou >= IOU_THRESHOLD:
-                                best_iou = iou
-                                best_match_idx = idx
-
-                        if best_match_idx >= 0:
-                            # Matched existing object
-                            unid_obj = unidentified_objects[best_match_idx]
-                            matched_unidentified.add(best_match_idx)
-
-                            # Update bbox
-                            unid_obj["bbox"] = bbox
-
-                            # Raising state transition with buffer
-                            if is_raising != unid_obj["is_raising"]:
-                                unid_obj["raise_buffer"] += 1
-                                if unid_obj["raise_buffer"] >= MIN_FRAMES_FOR_TRANSITION:
-                                    # Confirmed transition
-                                    if is_raising:  # Transition to raising
-                                        unid_obj["raise_count"] += 1
-                                        total_raise_count_no_id += 1
-                                    unid_obj["is_raising"] = is_raising
-                                    unid_obj["raise_buffer"] = 0
-                            else:
-                                unid_obj["raise_buffer"] = 0
-
-                            unid_obj["last_seen_frame"] = frame_idx
-
-                        else:
-                            # New unidentified object
-                            unidentified_objects.append({
-                                "bbox": bbox,
-                                "is_raising": is_raising,
-                                "raise_buffer": 0,
-                                "raise_count": 0,
-                                "last_seen_frame": frame_idx
-                            })
-
-                # Remove stale unidentified objects (not seen for 30 frames = 2 seconds at 15 FPS)
-                unidentified_objects = [
-                    obj for obj in unidentified_objects
-                    if frame_idx - obj["last_seen_frame"] < 30
-                ]
-
-                # Check for student IDs that disappeared (sat down)
-                # Mark them as absent so if they reappear later, we count it as a new stand event
-                ABSENCE_THRESHOLD = 15  # frames (1 second at 15 FPS)
-                for student_id in list(student_states.keys()):
-                    if student_id not in seen_student_ids:
-                        state = student_states[student_id]
-                        # If student hasn't been seen for a while, mark them as absent
-                        if frame_idx - state["last_seen_frame"] >= ABSENCE_THRESHOLD:
-                            # Remove from tracking - next appearance will be counted as new stand event
-                            del student_states[student_id]
-
-            # 3. Calculate total counts
-            stand_count = sum(student_stand_counts.values())
-            raise_up_count = sum(student_raise_counts.values()) + total_raise_count_no_id
-
-            # 4. Format student ID list (only students with stand transitions)
-            stand_reid = [
-                {"student_id": sid, "count": count}
-                for sid, count in sorted(student_stand_counts.items())
-                if count > 0
-            ]
-
-            stats = {
-                "student_count": student_count,
-                "stand_count": stand_count,
-                "raise_up_count": raise_up_count,
-                "stand_reid": stand_reid
-            }
-
-            self.logger.info(f"Pose statistics: {stats}")
-            return stats
+            return stats, previous_state
 
         except Exception as e:
-            self.logger.error(f"Error analyzing pose statistics: {e}")
+            self.logger.error(f"Error in incremental pose statistics: {e}")
             return {
                 "student_count": 0,
                 "stand_count": 0,
                 "raise_up_count": 0,
-                "stand_reid": []
+                "stand_reid": [],
+            }, previous_state
+
+    def _process_frames_incremental(self, state: Dict):
+        """Process frames incrementally, updating state"""
+        MIN_FRAMES_FOR_TRANSITION = 3
+        IOU_THRESHOLD = 0.3
+        ABSENCE_THRESHOLD = 15
+
+        frames = state["frames"]
+        student_states = state["student_states"]
+        student_stand_counts = state["student_stand_counts"]
+        student_raise_counts = state["student_raise_counts"]
+        unidentified_objects = state["unidentified_objects"]
+
+        # Only process new frames (frames not yet processed for state tracking)
+        start_idx = state.get("last_processed_frame_idx", 0)
+
+        for frame_idx in range(start_idx, len(frames)):
+            frame = frames[frame_idx]
+            objects = frame.get("objects", [])
+
+            seen_student_ids = set()
+            matched_unidentified = set()
+
+            for obj in objects:
+                detection = obj.get("detection", {})
+                label = detection.get("label", "")
+                student_id = obj.get("id", 0)
+                bbox = detection.get("bounding_box", {})
+
+                if bbox.get("x_max", 0) == 0:
+                    continue
+
+                is_standing = label in ["stand", "stand_raise_up"]
+                is_raising = label in ["sit_raise_up", "stand_raise_up"]
+
+                if student_id > 0:
+                    seen_student_ids.add(student_id)
+
+                    if student_id not in student_states:
+                        student_states[student_id] = {
+                            "last_seen_frame": frame_idx,
+                            "is_raising": is_raising,
+                            "raise_buffer": 0,
+                        }
+                        student_stand_counts[student_id] = student_stand_counts.get(student_id, 0) + 1
+                        if student_id not in student_raise_counts:
+                            student_raise_counts[student_id] = 0
+                    else:
+                        st = student_states[student_id]
+                        st["last_seen_frame"] = frame_idx
+
+                        if is_raising != st["is_raising"]:
+                            st["raise_buffer"] += 1
+                            if st["raise_buffer"] >= MIN_FRAMES_FOR_TRANSITION:
+                                if is_raising:
+                                    student_raise_counts[student_id] += 1
+                                st["is_raising"] = is_raising
+                                st["raise_buffer"] = 0
+                        else:
+                            st["raise_buffer"] = 0
+
+                else:
+                    # Handle unidentified objects
+                    best_match_idx = -1
+                    best_iou = 0
+
+                    for idx, unid_obj in enumerate(unidentified_objects):
+                        if idx in matched_unidentified:
+                            continue
+                        iou = self._calculate_iou(bbox, unid_obj["bbox"])
+                        if iou > best_iou and iou >= IOU_THRESHOLD:
+                            best_iou = iou
+                            best_match_idx = idx
+
+                    if best_match_idx >= 0:
+                        unid_obj = unidentified_objects[best_match_idx]
+                        matched_unidentified.add(best_match_idx)
+                        unid_obj["bbox"] = bbox
+
+                        if is_raising != unid_obj["is_raising"]:
+                            unid_obj["raise_buffer"] += 1
+                            if unid_obj["raise_buffer"] >= MIN_FRAMES_FOR_TRANSITION:
+                                if is_raising:
+                                    unid_obj["raise_count"] += 1
+                                    state["total_raise_count_no_id"] += 1
+                                unid_obj["is_raising"] = is_raising
+                                unid_obj["raise_buffer"] = 0
+                        else:
+                            unid_obj["raise_buffer"] = 0
+
+                        unid_obj["last_seen_frame"] = frame_idx
+                    else:
+                        unidentified_objects.append({
+                            "bbox": bbox,
+                            "is_raising": is_raising,
+                            "raise_buffer": 0,
+                            "raise_count": 0,
+                            "last_seen_frame": frame_idx,
+                        })
+
+            # Clean up stale unidentified objects
+            state["unidentified_objects"] = [
+                obj for obj in unidentified_objects
+                if frame_idx - obj["last_seen_frame"] < 30
+            ]
+
+            # Check for absent students
+            for student_id in list(student_states.keys()):
+                if student_id not in seen_student_ids:
+                    st = student_states[student_id]
+                    if frame_idx - st["last_seen_frame"] >= ABSENCE_THRESHOLD:
+                        del student_states[student_id]
+
+        state["last_processed_frame_idx"] = len(frames)
+
+    def _calculate_iou(self, bbox1: Dict, bbox2: Dict) -> float:
+        """Calculate IoU between two bounding boxes"""
+        x1_min = bbox1.get("x_min", 0)
+        y1_min = bbox1.get("y_min", 0)
+        x1_max = bbox1.get("x_max", 0)
+        y1_max = bbox1.get("y_max", 0)
+
+        x2_min = bbox2.get("x_min", 0)
+        y2_min = bbox2.get("y_min", 0)
+        x2_max = bbox2.get("x_max", 0)
+        y2_max = bbox2.get("y_max", 0)
+
+        x_left = max(x1_min, x2_min)
+        y_top = max(y1_min, y2_min)
+        x_right = min(x1_max, x2_max)
+        y_bottom = min(y1_max, y2_max)
+
+        if x_right < x_left or y_bottom < y_top:
+            return 0.0
+
+        intersection = (x_right - x_left) * (y_bottom - y_top)
+        area1 = (x1_max - x1_min) * (y1_max - y1_min)
+        area2 = (x2_max - x2_min) * (y2_max - y2_min)
+        union = area1 + area2 - intersection
+
+        if union == 0:
+            return 0.0
+
+        return intersection / union
+
+    def _calculate_stats_from_frames(
+        self, frames: List, student_stand_counts: Dict, 
+        student_raise_counts: Dict, total_raise_count_no_id: int
+    ) -> Dict:
+        """Calculate statistics from processed frames and counters"""
+        if not frames:
+            return {
+                "student_count": 0,
+                "stand_count": 0,
+                "raise_up_count": 0,
+                "stand_reid": [],
             }
+
+        # Calculate student count at target frames
+        target_frames = [900, 1800, 2700]
+        person_counts = []
+
+        if len(frames) < max(target_frames):
+            target_frames = [len(frames) - 1]
+
+        for target_idx in target_frames:
+            if target_idx < len(frames):
+                frame = frames[target_idx]
+                objects = frame.get("objects", [])
+                count = sum(
+                    1 for obj in objects
+                    if obj.get("detection", {}).get("bounding_box", {}).get("x_max", 0) > 0
+                )
+                person_counts.append(count)
+
+        student_count = int(sum(person_counts) / len(person_counts)) if person_counts else 0
+        stand_count = sum(student_stand_counts.values())
+        raise_up_count = sum(student_raise_counts.values()) + total_raise_count_no_id
+
+        stand_reid = [
+            {"student_id": sid, "count": count}
+            for sid, count in sorted(student_stand_counts.items())
+            if count > 0
+        ]
+
+        return {
+            "student_count": student_count,
+            "stand_count": stand_count,
+            "raise_up_count": raise_up_count,
+            "stand_reid": stand_reid,
+        }
