@@ -427,18 +427,16 @@ def stop_video_analytics_pipeline(
 
 @router.get("/monitor-video-analytics-pipeline")
 async def monitor_video_analytics_pipeline_status(
-    pipeline_name: str,
     x_session_id: Optional[str] = Header(None)
 ):
     """
-    Monitor video analytics pipeline status with streaming response
+    Monitor all video analytics pipelines status with streaming response
     
     Args:
-        pipeline_name: Name of pipeline to monitor ('front', 'back', or 'content')
         x_session_id: Session ID from header
         
     Returns:
-        Streaming response with pipeline status updates
+        Streaming response with all pipelines status updates
     """
     if not x_session_id:
         raise HTTPException(
@@ -451,18 +449,10 @@ async def monitor_video_analytics_pipeline_status(
             detail=f"No video analytics service found for session {x_session_id}",
         )
 
-    # Validate pipeline name
-    valid_pipelines = ["front", "back", "content"]
-    if pipeline_name not in valid_pipelines:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid pipeline_name '{pipeline_name}'. Must be one of: {valid_pipelines}",
-        )
-
     service = va_services[x_session_id]
 
     async def stream_status():
-        async for status_data in service.monitor_pipeline_status(pipeline_name):
+        async for status_data in service.monitor_pipeline_status():
             yield json.dumps(status_data) + "\n"
 
     return StreamingResponse(stream_status(), media_type="application/json")

@@ -741,26 +741,26 @@ class VideoAnalyticsPipelineService:
         return process.poll() is None
 
     async def monitor_pipeline_status(
-        self, pipeline_name: str, check_interval: float = 2.0
+        self, check_interval: float = 2.0
     ):
         """
-        Monitor pipeline process status and yield status updates for streaming response
+        Monitor all pipeline processes status and yield status updates for streaming response
 
-        This async generator continuously monitors the pipeline process state and yields
-        status information. It does NOT restart the pipeline - that is handled by
+        This async generator continuously monitors all pipeline process states and yields
+        combined status information. It does NOT restart the pipelines - that is handled by
         the internal _monitor_pipeline thread.
 
         Args:
-            pipeline_name: Name of pipeline to monitor
             check_interval: Seconds between status checks (default: 2.0)
 
         Yields:
-            Dictionary with status information:
-            - pipeline_name: Name of the pipeline
-            - status: 'running', 'stopped_normal', 'stopped_error', or 'not_found'
-            - pid: Process ID (if running)
-            - message: Additional status message
-            - error: Error details (if stopped with error)
+            Dictionary with status information for all pipelines:
+            - pipelines: List of pipeline status dictionaries, each containing:
+                - pipeline_name: Name of the pipeline
+                - status: 'running', 'stopped_normal', 'stopped_error', or 'not_found'
+                - pid: Process ID (if running)
+                - message: Additional status message
+                - error: Error details (if stopped with error)
 
         Note:
             This is designed for streaming responses. The _monitor_pipeline thread
@@ -768,72 +768,73 @@ class VideoAnalyticsPipelineService:
         """
         import asyncio
 
-        pipeline_name = pipeline_name.lower()
-
-        if pipeline_name not in self.pipelines:
-            self.logger.error(f"Pipeline '{pipeline_name}' is not registered")
-            yield {
-                "pipeline_name": pipeline_name,
-                "status": "not_found",
-                "message": f"Pipeline '{pipeline_name}' not found",
-            }
-            return
-
-        self.logger.info(f"Starting status monitoring for pipeline '{pipeline_name}'")
+        all_pipeline_names = ["front", "back", "content"]
+        self.logger.info(f"Starting status monitoring for all pipelines: {all_pipeline_names}")
 
         try:
             while True:
-                # Check if pipeline still exists in registry
-                if pipeline_name not in self.pipelines:
-                    yield {
-                        "pipeline_name": pipeline_name,
-                        "status": "stopped_normal",
-                        "message": "Pipeline removed from registry",
-                    }
-                    break
+                pipeline_statuses = []
+                all_stopped = True
 
-                process = self.pipelines[pipeline_name]
-                return_code = process.poll()
+                for pipeline_name in all_pipeline_names:
+                    pipeline_name_lower = pipeline_name.lower()
 
-                # Pipeline is running
-                if return_code is None:
-                    yield {
-                        "pipeline_name": pipeline_name,
-                        "status": "running",
-                        "pid": process.pid,
-                    }
-                    await asyncio.sleep(check_interval)
-
-                # Pipeline has stopped
-                else:
-                    log_file = self.pipeline_logs.get(pipeline_name)
-
-                    # Check if it was a normal exit
-                    if log_file and self._check_normal_exit(log_file):
-                        yield {
+                    # Check if pipeline is registered
+                    if pipeline_name_lower not in self.pipelines:
+                        pipeline_statuses.append({
                             "pipeline_name": pipeline_name,
-                            "status": "stopped_normal",
-                            "return_code": return_code,
-                            "message": "Pipeline exited normally (EOS received)",
-                        }
+                            "status": "not_found",
+                            "message": f"Pipeline '{pipeline_name}' not found",
+                        })
+                        continue
+
+                    process = self.pipelines[pipeline_name_lower]
+                    return_code = process.poll()
+
+                    # Pipeline is running
+                    if return_code is None:
+                        all_stopped = False
+                        pipeline_statuses.append({
+                            "pipeline_name": pipeline_name,
+                            "status": "running",
+                            "pid": process.pid,
+                        })
+
+                    # Pipeline has stopped
                     else:
-                        # Check for errors in log
-                        error_msg = "Pipeline exited unexpectedly"
-                        if log_file and self._check_error(log_file):
-                            error_msg = f"Pipeline stopped with errors. Log: {log_file}. Auto-restart handled by monitor thread."
+                        log_file = self.pipeline_logs.get(pipeline_name_lower)
+
+                        # Check if it was a normal exit
+                        if log_file and self._check_normal_exit(log_file):
+                            pipeline_statuses.append({
+                                "pipeline_name": pipeline_name,
+                                "status": "stopped_normal",
+                                "return_code": return_code,
+                                "message": "Pipeline exited normally (EOS received)",
+                            })
                         else:
-                            error_msg = f"Pipeline exited unexpectedly. Auto-restart handled by monitor thread."
+                            # Check for errors in log
+                            error_msg = "Pipeline exited unexpectedly"
+                            if log_file and self._check_error(log_file):
+                                error_msg = f"Pipeline stopped with errors. Log: {log_file}. Auto-restart handled by monitor thread."
+                            else:
+                                error_msg = f"Pipeline exited unexpectedly. Auto-restart handled by monitor thread."
 
-                        yield {
-                            "pipeline_name": pipeline_name,
-                            "status": "stopped_error",
-                            "return_code": return_code,
-                            "message": error_msg,
-                        }
+                            pipeline_statuses.append({
+                                "pipeline_name": pipeline_name,
+                                "status": "stopped_error",
+                                "return_code": return_code,
+                                "message": error_msg,
+                            })
 
-                    # Pipeline stopped, end monitoring
-                    # Note: _monitor_pipeline thread may restart it, but this generator ends
+                # Yield combined status
+                yield {"pipelines": pipeline_statuses}
+
+                # If all pipelines have stopped, end monitoring
+                if all_stopped:
                     break
+
+                await asyncio.sleep(check_interval)
 
         except Exception as e:
             self.logger.error(f"Error monitoring pipeline status: {e}")
