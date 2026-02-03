@@ -814,11 +814,7 @@ class VideoAnalyticsPipelineService:
                             })
                         else:
                             # Check for errors in log
-                            error_msg = "Pipeline exited unexpectedly"
-                            if log_file and self._check_error(log_file):
-                                error_msg = f"Pipeline stopped with errors. Log: {log_file}. Auto-restart handled by monitor thread."
-                            else:
-                                error_msg = f"Pipeline exited unexpectedly. Auto-restart handled by monitor thread."
+                            error_msg = "Pipeline exited unexpectedly. Auto-restarting."
 
                             pipeline_statuses.append({
                                 "pipeline_name": pipeline_name,
@@ -829,10 +825,6 @@ class VideoAnalyticsPipelineService:
 
                 # Yield combined status
                 yield {"pipelines": pipeline_statuses}
-
-                # If all pipelines have stopped, end monitoring
-                if all_stopped:
-                    break
 
                 await asyncio.sleep(check_interval)
 
