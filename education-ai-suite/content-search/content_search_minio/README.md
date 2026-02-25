@@ -21,6 +21,8 @@ Example:
 ```json
 {
   "minio": {
+    "address": ":9000",
+    "console_address": ":9001",
     "server": "127.0.0.1:9000",
     "root_user": "minioadmin",
     "root_password": "minioadmin",
@@ -31,6 +33,8 @@ Example:
 ```
 
 Fields:
+- `minio.address`: bind address for the MinIO S3 API (required by `start_minio_server.ps1`)
+- `minio.console_address`: bind address for the MinIO Console UI (required by `start_minio_server.ps1`)
 - `minio.server`: `host:port` (for example `127.0.0.1:9000`)
 - `minio.root_user` / `minio.root_password`: credentials
 - `minio.bucket`: default bucket name
@@ -52,8 +56,6 @@ cd <this-folder>
 
 Optional parameters:
 - `-ConfigPath`: default `config.json`
-- `-Address`: default `:9000`
-- `-ConsoleAddress`: default `:9001`
 
 The script reads `root_user/root_password` from `config.json` and sets:
 - `MINIO_ROOT_USER`

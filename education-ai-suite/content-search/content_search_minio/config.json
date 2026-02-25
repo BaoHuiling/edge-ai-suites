@@ -1,5 +1,7 @@
 {
   "minio": {
+    "address": ":9000",
+    "console_address": ":9001",
     "server": "127.0.0.1:9000",
     "root_user": "minioadmin",
     "root_password": "minioadmin",

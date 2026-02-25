@@ -6,13 +6,7 @@ param(
   [string]$MinioExe = "C:\Users\Intel\Downloads\minio.exe",
 
   [Parameter(Mandatory=$false)]
-  [string]$DataDir = "C:\Users\Intel\Downloads\minio-data",
-
-  [Parameter(Mandatory=$false)]
-  [string]$Address = ":9000",
-
-  [Parameter(Mandatory=$false)]
-  [string]$ConsoleAddress = ":9001"
+  [string]$DataDir = "C:\Users\Intel\Downloads\minio-data"
 )
 
 $ErrorActionPreference = "Stop"
@@ -37,15 +31,27 @@ if (-not (Test-Path $ConfigPath)) {
 $configRaw = Get-Content -Path $ConfigPath -Raw
 $config = $configRaw | ConvertFrom-Json
 
-# Supports both nested { minio: {...} } and flat { MINIO_ROOT_USER: ... }
 $minio = $config.minio
-if ($null -eq $minio) { $minio = $config }
+if ($null -eq $minio) {
+  throw "Missing 'minio' object in config.json. Expected format: { `"minio`": { ... } }"
+}
 
-$rootUser = $minio.root_user
-if ($null -eq $rootUser) { $rootUser = $minio.MINIO_ROOT_USER }
+$addressFromConfig = $minio.address
 
-$rootPassword = $minio.root_password
-if ($null -eq $rootPassword) { $rootPassword = $minio.MINIO_ROOT_PASSWORD }
+$consoleAddressFromConfig = $minio.console_address
+
+if ([string]::IsNullOrWhiteSpace($addressFromConfig)) {
+  throw "Missing minio.address in config.json. Example: `"address`": `":9000`""
+}
+if ([string]::IsNullOrWhiteSpace($consoleAddressFromConfig)) {
+  throw "Missing minio.console_address in config.json. Example: `"console_address`": `":9001`""
+}
+
+$Address = [string]$addressFromConfig
+$ConsoleAddress = [string]$consoleAddressFromConfig
+
+$rootUser = [string]$minio.root_user
+$rootPassword = [string]$minio.root_password
 
 if ([string]::IsNullOrWhiteSpace($rootUser) -or [string]::IsNullOrWhiteSpace($rootPassword)) {
   throw "Missing root_user/root_password in config.json (minio.root_user/minio.root_password)"
