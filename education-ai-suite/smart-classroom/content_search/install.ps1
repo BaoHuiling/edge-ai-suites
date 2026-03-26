@@ -32,8 +32,8 @@ Invoke-Cmd $venvPython -m pip install git+https://github.com/apple/ml-mobileclip
 Write-Host "Installing salesforce-lavis..."
 Invoke-Cmd $venvPython -m pip install salesforce-lavis==1.0.2 --quiet
 
-Write-Host "Installing requirements.txt..."
-Invoke-Cmd $venvPython -m pip install -r (Join-Path $PSScriptRoot "requirements.txt") --quiet
+Write-Host "Installing requirements_310.txt..."
+Invoke-Cmd $venvPython -m pip install -r (Join-Path $PSScriptRoot "requirements_310.txt") --quiet
 
 # --- Install multimodal_embedding_serving wheel ---
 $whl = Get-ChildItem -Path $PSScriptRoot -Filter "multimodal_embedding_serving*.whl" -ErrorAction SilentlyContinue | Select-Object -First 1
