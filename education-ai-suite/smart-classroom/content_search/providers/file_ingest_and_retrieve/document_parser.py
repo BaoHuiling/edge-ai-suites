@@ -13,7 +13,7 @@ from llama_index.core.schema import BaseNode
 from llama_index.readers.file import UnstructuredReader
 from unstructured.partition.docx import register_picture_partitioner
 
-from content_search.file_ingest_and_retrieve.utils import DocxParagraphPicturePartitioner, ensure_directory, is_supported_file
+from content_search.providers.file_ingest_and_retrieve.utils import DocxParagraphPicturePartitioner, ensure_directory, is_supported_file
 
 logger = logging.getLogger(__name__)
 

@@ -32,7 +32,7 @@ from pydantic import BaseModel, Field
 
 from frame_sampler import FrameSampler
 
-from content_search.minio_wrapper.minio_client import MinioStore
+from content_search.providers.minio_wrapper.minio_client import MinioStore
 
 from utils.config_loader import config as _svc_config
 

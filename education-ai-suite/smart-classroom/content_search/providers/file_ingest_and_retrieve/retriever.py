@@ -9,7 +9,7 @@ import io
 from multimodal_embedding_serving import get_model_handler, EmbeddingModel
 from llama_index.embeddings.huggingface_openvino import OpenVINOEmbedding
 
-from content_search.chromadb_wrapper.chroma_client import ChromaClientWrapper
+from content_search.providers.chromadb_wrapper.chroma_client import ChromaClientWrapper
 from utils.config_loader import config
 
 _cfg = config.content_search.file_ingest

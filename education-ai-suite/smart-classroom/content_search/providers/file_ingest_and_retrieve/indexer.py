@@ -10,10 +10,10 @@ from PIL import Image
 from multimodal_embedding_serving import get_model_handler, EmbeddingModel
 from llama_index.embeddings.huggingface_openvino import OpenVINOEmbedding
 
-from content_search.chromadb_wrapper.chroma_client import ChromaClientWrapper
-from content_search.file_ingest_and_retrieve.document_parser import DocumentParser
-from content_search.file_ingest_and_retrieve.detector import Detector
-from content_search.file_ingest_and_retrieve.utils import generate_unique_id, encode_image_to_base64
+from content_search.providers.chromadb_wrapper.chroma_client import ChromaClientWrapper
+from content_search.providers.file_ingest_and_retrieve.document_parser import DocumentParser
+from content_search.providers.file_ingest_and_retrieve.detector import Detector
+from content_search.providers.file_ingest_and_retrieve.utils import generate_unique_id, encode_image_to_base64
 from utils.config_loader import config
 
 logger = logging.getLogger(__name__)

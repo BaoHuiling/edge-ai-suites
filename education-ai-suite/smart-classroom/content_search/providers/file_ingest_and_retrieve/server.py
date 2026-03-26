@@ -1,46 +1,44 @@
 # Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-from fastapi import FastAPI, File, UploadFile, HTTPException, Request, Body
-from fastapi.responses import JSONResponse, FileResponse
-from fastapi.staticfiles import StaticFiles
-import os
-import re
 import logging
-import json
-from tqdm import tqdm
-from pathlib import Path
+import warnings
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="[%(levelname)s] %(asctime)s.%(msecs)03d [%(name)s]: %(message)s",
+    datefmt='%Y-%m-%d %H:%M:%S',
+    force=True,
+)
+for _noisy in [
+    "unstructured", "unstructured_inference", "detectron2",
+    "transformers", "urllib3", "httpx", "httpcore",
+    "opentelemetry", "PIL", "chromadb", "llama_index",
+    "multimodal_embedding_serving", "sentence_transformers",
+    "huggingface_hub", "filelock", "optimum",
+    "pdfminer", "torch", "torch.jit", "timm",
+]:
+    logging.getLogger(_noisy).setLevel(logging.WARNING)
+warnings.filterwarnings("ignore", category=FutureWarning, module="timm")
+
+from fastapi import FastAPI, HTTPException, Body
+from fastapi.responses import JSONResponse
+import os
 
 from pydantic import BaseModel, field_validator
 from typing import Optional, Dict, Union
 
 import tempfile
 
-from content_search.minio_wrapper.minio_client import MinioStore
-from content_search.file_ingest_and_retrieve.indexer import Indexer
-from content_search.file_ingest_and_retrieve.retriever import ChromaRetriever
+from content_search.providers.minio_wrapper.minio_client import MinioStore
+from content_search.providers.file_ingest_and_retrieve.indexer import Indexer
+from content_search.providers.file_ingest_and_retrieve.retriever import ChromaRetriever
 from utils.config_loader import config
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="[%(levelname)s] %(asctime)s.%(msecs)03d [%(name)s]: %(message)s",
-    datefmt='%Y-%m-%d %H:%M:%S'
-)
 logger = logging.getLogger("visual_data_service")
 
-# Suppress noisy third-party loggers
-for _noisy in [
-    "unstructured", "unstructured_inference", "detectron2",
-    "transformers", "urllib3", "httpx", "httpcore",
-    "opentelemetry", "PIL", "chromadb", "llama_index",
-    "multimodal_embedding_serving", "sentence_transformers",
-    "huggingface_hub", "filelock", "optimum", "transformers",
-    "pdfminer",
-]:
-    logging.getLogger(_noisy).setLevel(logging.WARNING)
-
 class _IngestRequestBase(BaseModel):
-    @field_validator('meta')
+    @field_validator('meta', check_fields=False)
     @classmethod
     def validate_meta_tags(cls, v: dict) -> dict:
         if 'tags' in v:
