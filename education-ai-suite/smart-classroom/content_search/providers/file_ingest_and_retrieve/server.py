@@ -11,7 +11,7 @@ import json
 from tqdm import tqdm
 from pathlib import Path
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from typing import Optional, Dict, Union
 
 import tempfile
@@ -39,27 +39,40 @@ for _noisy in [
 ]:
     logging.getLogger(_noisy).setLevel(logging.WARNING)
 
+class _IngestRequestBase(BaseModel):
+    @field_validator('meta')
+    @classmethod
+    def validate_meta_tags(cls, v: dict) -> dict:
+        if 'tags' in v:
+            tags = v['tags']
+            if not isinstance(tags, list):
+                raise ValueError("'tags' must be a list of strings.")
+            if not all(isinstance(t, str) for t in tags):
+                raise ValueError("All elements in 'tags' must be strings.")
+        return v
+
+
 class RetrievalRequest(BaseModel):
     query: Optional[str] = None
     image_base64: Optional[str] = None
     filter: Optional[Dict] = None
     max_num_results: int = 10
 
-class IngestMinioDirRequest(BaseModel):
+class IngestMinioDirRequest(_IngestRequestBase):
     bucket_name: str
     folder_path: str
     meta: dict = {}
     frame_extract_interval: int = 15
     do_detect_and_crop: bool = False
 
-class IngestMinioFileRequest(BaseModel):
+class IngestMinioFileRequest(_IngestRequestBase):
     bucket_name: str
     file_path: str
     meta: dict = {}
     frame_extract_interval: int = 15
     do_detect_and_crop: bool = False
 
-class IngestTextRequest(BaseModel):
+class IngestTextRequest(_IngestRequestBase):
     bucket_name: Optional[str] = None
     file_path: Optional[str] = None
     text: str

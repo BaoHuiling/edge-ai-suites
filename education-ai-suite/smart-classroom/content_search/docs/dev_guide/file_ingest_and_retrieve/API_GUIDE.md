@@ -133,6 +133,24 @@ curl -X POST http://localhost:9990/v1/dataprep/ingest \
   }'
 ```
 
+With list-valued metadata fields:
+
+```bash
+curl -X POST http://localhost:9990/v1/dataprep/ingest \
+  -H "Content-Type: application/json" \
+  -d '{
+    "bucket_name": "my-bucket",
+    "file_path": "documents/report.pdf",
+    "meta": {
+      "tags": ["finance", "quarterly", "2026"],
+      "authors": ["Alice", "Bob"],
+      "year": 2026
+    }
+  }'
+```
+
+> **Note:** Metadata values can be strings, numbers, booleans, or **homogeneous lists** (all elements must be the same type). The `tags` field, if provided, must be a **list of strings** — passing a non-list or a list with non-string elements returns `422`.
+
 **Response**
 
 ```json
@@ -163,6 +181,22 @@ curl -X POST http://localhost:9990/v1/dataprep/ingest \
   -d '{
     "bucket_name": "my-bucket",
     "folder_path": "course-materials/week1/"
+  }'
+```
+
+With list-valued metadata applied to every file in the directory:
+
+```bash
+curl -X POST http://localhost:9990/v1/dataprep/ingest \
+  -H "Content-Type: application/json" \
+  -d '{
+    "bucket_name": "my-bucket",
+    "folder_path": "course-materials/week1/",
+    "meta": {
+      "course": "CS101",
+      "topics": ["arrays", "linked lists", "sorting"],
+      "week": 1
+    }
   }'
 ```
 
@@ -204,6 +238,25 @@ curl -X POST http://localhost:9990/v1/dataprep/ingest_text \
   }'
 ```
 
+With tags metadata:
+
+```bash
+curl -X POST http://localhost:9990/v1/dataprep/ingest_text \
+  -H "Content-Type: application/json" \
+  -d '{
+    "bucket_name": "content-search",
+    "file_path": "summaries/lecture1.txt",
+    "text": "Photosynthesis is the process by which plants convert light into energy.",
+    "meta": {
+      "tags": ["biology", "plants", "energy"],
+      "related_chapters": [3, 4],
+      "course": "BIO101"
+    }
+  }'
+```
+
+> Note: The `tags` field must be a **list of strings** — passing a non-list or a list with non-string elements returns `422`.
+
 Below metadatas shall be automatically appended
 ```json
 "meta": {
@@ -225,6 +278,7 @@ Below metadatas shall be automatically appended
 | Code | Condition |
 |------|-----------|
 | `400` | `text` is empty or missing |
+| `422` | `tags` in `meta` is not a list of strings |
 | `500` | Embedding or database error |
 
 ---
@@ -395,10 +449,12 @@ Search the index using a text query or a base64-encoded image. Returns the top-k
 |-------|------|----------|-------------|
 | `query` | string | One of `query` or `image_base64` | Natural language search query |
 | `image_base64` | string | One of `query` or `image_base64` | Base64-encoded image to search by visual similarity |
-| `filter` | object | No | Metadata filter to narrow results (ChromaDB `where` clause) |
+| `filter` | object | No | Metadata filter to narrow results. Scalar fields use direct equality; list fields (e.g. `tags`) is parsed as `"or"`. |
 | `max_num_results` | integer | No (default `10`) | Max results per collection (1–16384). For text queries, up to `2 × max_num_results` may be returned (top-k from visual collection + top-k from document collection, merged and sorted by distance). For image queries, at most `max_num_results` are returned. |
 
 > **Note:** Provide exactly one of `query` or `image_base64` — not both.
+
+> **For Developer** A placeholder of list fields parsed as `"and"` is added.
 
 **Text search example**
 
@@ -432,10 +488,12 @@ curl -X POST http://localhost:9990/v1/retrieval \
   -H "Content-Type: application/json" \
   -d '{
     "query": "lecture notes",
-    "filter": { "course": "CS101" },
+    "filter": { "course": "CS101", "tags": ["biology", "plants"] },
     "max_num_results": 3
   }'
 ```
+
+Returns results of course "CS101" whose `tags` array contains `"biology"` **or** `"plants"`
 
 **Response**
 
@@ -447,7 +505,9 @@ curl -X POST http://localhost:9990/v1/retrieval \
       "distance": 0.142,
       "meta": {
         "file_path": "minio://my-bucket/documents/report.pdf",
-        "page": 3
+        "page": 3,
+        "course": "CS101",
+        "tags": ["plants"]
       }
     },
     ...

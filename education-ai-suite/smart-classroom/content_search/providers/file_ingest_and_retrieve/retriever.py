@@ -47,7 +47,51 @@ class ChromaRetriever:
         embedding_tensor = self.visual_embedding_model.handler.encode_image(img)
         return embedding_tensor.cpu().numpy().tolist()
 
-    def search(self, query=None, image_base64=None, filters=None, top_k=5):
+    def _build_where_clause(self, filters: dict, list_filter_mode: str = "or") -> dict:
+        """Build a ChromaDB where clause from a filters dict.
+
+        Different keys are always combined with $and regardless of list_filter_mode.
+        list_filter_mode only controls the logic *within* a single list-valued field:
+            "or"  (Option B): field must contain AT LEAST ONE of the filter values ($or).
+            "and" (Option A): field must contain ALL of the filter values ($and).
+
+        Example: {"course": "CS101", "tags": ["tag1", "tag2"]} with mode="or" →
+            $and: [ {course: CS101}, $or: [{tags $contains "tag1"}, {tags $contains "tag2"}] ]
+        """
+        conditions = []
+        for key, value in filters.items():
+            if key == "timestamp_start":
+                conditions.append({"timestamp": {"$gte": value}})
+            elif key == "timestamp_end":
+                conditions.append({"timestamp": {"$lte": value}})
+            elif isinstance(value, list):
+                # Use native ChromaDB $contains for array metadata fields (requires chromadb>=1.5.5)
+                contains_exprs = [{key: {"$contains": v}} for v in value]
+                if len(contains_exprs) == 1:
+                    conditions.extend(contains_exprs)
+                elif list_filter_mode == "and":
+                    # Option A: ALL values must be present
+                    conditions.append({"$and": contains_exprs})
+                else:
+                    # Option B (default): ANY value must be present
+                    conditions.append({"$or": contains_exprs})
+            else:
+                conditions.append({key: value})
+
+        if not conditions:
+            return {}
+        if len(conditions) == 1:
+            return conditions[0]
+        return {"$and": conditions}
+
+    def search(self, query=None, image_base64=None, filters=None, top_k=5, list_filter_mode="or"):
+        """Search the index.
+
+        Args:
+            list_filter_mode: How list-valued filter fields are matched.
+                "or"  (Option B) — field must contain at least one of the filter values.
+                "and" (Option A) — field must contain all of the filter values.
+        """
         if not query and not image_base64:
             raise ValueError("Either 'query' or 'image_base64' must be provided.")
         if query and image_base64:
@@ -62,19 +106,7 @@ class ChromaRetriever:
         if embedding is None:
             raise Exception("Failed to get embedding for the input.")
 
-        where_clause: Where = {}
-        if filters:
-            for key, value in filters.items():
-                if key == "timestamp_start":
-                    where_clause["timestamp"] = where_clause.get("timestamp", {})
-                    where_clause["timestamp"]["$gte"] = value
-                elif key == "timestamp_end":
-                    where_clause["timestamp"] = where_clause.get("timestamp", {})
-                    where_clause["timestamp"]["$lte"] = value
-                else:
-                    where_clause[key] = value
-
-        where = where_clause if where_clause else None
+        where = self._build_where_clause(filters, list_filter_mode) if filters else None
 
         # Search visual collection
         results = self.client.query(
