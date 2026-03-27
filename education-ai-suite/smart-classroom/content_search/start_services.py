@@ -35,6 +35,7 @@ def _build_env(extra: Optional[Dict[str, str]] = None,
                extra_pythonpath: Optional[List[str]] = None) -> Dict[str, str]:
     env = os.environ.copy()
     env["PYTHONUNBUFFERED"] = "1"
+    env["PYTHONIOENCODING"] = "utf-8"
     env.pop("TRANSFORMERS_CACHE", None)
 
     paths = [str(REPO_ROOT)] + [str(p) for p in (extra_pythonpath or [])]
@@ -125,7 +126,7 @@ def main() -> None:
             raise SystemExit("Missing content_search.minio.minio_exe in config.yaml.")
         exe_path = Path(str(minio_cfg.minio_exe).strip().replace("\\", "/")).expanduser()
         if not exe_path.is_absolute():
-            exe_path = CONTENT_SEARCH_DIR / exe_path
+            exe_path = CONTENT_SEARCH_DIR / "providers" / exe_path
         if not exe_path.is_file():
             raise SystemExit(
                 f"MinIO executable not found: {exe_path}\n"
@@ -152,8 +153,8 @@ def main() -> None:
         else (CONTENT_SEARCH_DIR / ".cache" / "huggingface").resolve()
     )
 
-    vlm_dir        = CONTENT_SEARCH_DIR / "vlm_openvino_serving"
-    preprocess_dir = CONTENT_SEARCH_DIR / "video_preprocess"
+    vlm_dir        = CONTENT_SEARCH_DIR / "providers" / "vlm_openvino_serving"
+    preprocess_dir = CONTENT_SEARCH_DIR / "providers" / "video_preprocess"
 
     # --- chromadb exe and data dir ---
     chroma_exe = str((CONTENT_SEARCH_DIR / "venv_content_search" / "Scripts" / "chroma.exe").resolve())
@@ -207,7 +208,7 @@ def main() -> None:
         },
         "ingest": {
             "cmd": [sys.executable, "-m", "uvicorn",
-                    "content_search.file_ingest_and_retrieve.server:app",
+                    "content_search.providers.file_ingest_and_retrieve.server:app",
                     "--host", str(ingest_cfg.host_addr), "--port", str(int(ingest_cfg.port))],
             "cwd": REPO_ROOT,
             "extra_env": None,
