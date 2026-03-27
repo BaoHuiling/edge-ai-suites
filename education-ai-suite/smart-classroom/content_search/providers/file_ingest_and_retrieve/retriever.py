@@ -6,7 +6,7 @@ from PIL import Image
 import base64
 import io
 
-from multimodal_embedding_serving import get_model_handler, EmbeddingModel
+from content_search.providers.file_ingest_and_retrieve.embedding import get_model_handler, EmbeddingModel
 from llama_index.embeddings.huggingface_openvino import OpenVINOEmbedding
 
 from content_search.providers.chromadb_wrapper.chroma_client import ChromaClientWrapper

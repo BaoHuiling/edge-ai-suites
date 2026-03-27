@@ -147,17 +147,15 @@ def main() -> None:
 
     # --- VLM HuggingFace cache ---
     hf_cache_raw = str(getattr(vlm_cfg, "hf_cache_dir", "") or "").strip()
-    hf_cache = (
-        Path(hf_cache_raw).expanduser().resolve()
-        if hf_cache_raw
-        else (CONTENT_SEARCH_DIR / ".cache" / "huggingface").resolve()
-    )
 
     vlm_dir        = CONTENT_SEARCH_DIR / "providers" / "vlm_openvino_serving"
     preprocess_dir = CONTENT_SEARCH_DIR / "providers" / "video_preprocess"
 
     # --- chromadb exe and data dir ---
-    chroma_exe = str((CONTENT_SEARCH_DIR / "venv_content_search" / "Scripts" / "chroma.exe").resolve())
+    chroma_exe = str((Path(sys.prefix) / "Scripts" / "chroma.exe").resolve())
+    if not Path(chroma_exe).is_file():
+        # Fallback to venv_content_search if active venv doesn't have chroma
+        chroma_exe = str((CONTENT_SEARCH_DIR / "venv_content_search" / "Scripts" / "chroma.exe").resolve())
     if not Path(chroma_exe).is_file():
         raise SystemExit(f"ChromaDB executable not found: {chroma_exe}")
     chroma_data_raw = str(getattr(chroma_cfg, "data_dir", "") or "").strip()
@@ -193,9 +191,10 @@ def main() -> None:
                 "VLM_DEVICE":                    str(vlm_cfg.device),
                 "VLM_COMPRESSION_WEIGHT_FORMAT": str(vlm_cfg.weight_format),
                 "VLM_LOG_LEVEL":                 os.environ.get("VLM_LOG_LEVEL", "info"),
-                "HF_HOME":                       str(hf_cache),
-                "HUGGINGFACE_HUB_CACHE":         str(hf_cache / "hub"),
-                "XDG_CACHE_HOME":                str(hf_cache),
+                **(  # only override HF cache when explicitly configured
+                    {"HF_HOME": str(Path(hf_cache_raw).expanduser().resolve())}
+                    if hf_cache_raw else {}
+                ),
             },
             "extra_pythonpath": [vlm_dir],
         },

@@ -7,15 +7,13 @@ For full develop guide and API Reference, please see the [Dev Guide](docs/dev_gu
 
 ### Prerequisites
 
-- **Python 3.10** — only this version is verified on Windows: https://www.python.org/downloads/
-- **Rust compiler** — required by some dependencies: https://rust-lang.org/tools/install
-- **`multimodal_embedding_serving` wheel** — obtain from [this guide](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multimodal-embedding-serving/docs/user-guide/wheel-installation.md) (use verified commit `77b812f`). Place the `.whl` file in the `content_search/` folder before running `install.ps1`.
+- **Python 3.12** — verified on Windows: https://www.python.org/downloads/
 
 ### Install System Dependencies
 
 The `install.ps1` will:
-- Creates the Python 3.10 venv
-- Installs `mobileclip`, `salesforce-lavis`, `requirements.txt`, and the `multimodal_embedding_serving` wheel
+- Creates the Python 3.12 venv
+- Installs `requirements_providers.txt`
 - Downloads and installs Tesseract OCR 5.5.0 and adds it to the user PATH
 - Downloads and extracts Poppler 25.12.0 and adds it to the user PATH
 - Install minio to content_search/providers/minio_wrapper folder

@@ -14,7 +14,7 @@ for _noisy in [
     "unstructured", "unstructured_inference", "detectron2",
     "transformers", "urllib3", "httpx", "httpcore",
     "opentelemetry", "PIL", "chromadb", "llama_index",
-    "multimodal_embedding_serving", "sentence_transformers",
+    "sentence_transformers",
     "huggingface_hub", "filelock", "optimum",
     "pdfminer", "torch", "torch.jit", "timm",
 ]:
