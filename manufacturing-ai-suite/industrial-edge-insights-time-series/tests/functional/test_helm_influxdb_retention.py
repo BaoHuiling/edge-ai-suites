@@ -14,7 +14,7 @@ import os
 import subprocess
 import time
 import logging
-import conftest
+import conftest_helm
 # Set up logger
 logger = logging.getLogger(__name__)
 
@@ -25,7 +25,7 @@ pytest_plugins = ["conftest_helm"]
 FUNCTIONAL_FOLDER_PATH_FROM_TEST_FILE, release_name, release_name_weld, chart_path, namespace, grafana_url, wait_time, target, PROXY_URL = helm_utils.get_env_values()
 
 @pytest.mark.parametrize("telegraf_input_plugin", [constants.TELEGRAF_OPCUA_PLUGIN])
-def test_influxdb_data_retention_with_opcua(setup_helm_environment):
+def test_influxdb_data_retention_with_opcua(setup_helm_environment, telegraf_input_plugin):
     logger.info("TC_001: Testing InfluxDB data retention of 1 hour with opcua plugin.")
     # Define the path to the config.json file
    
@@ -33,7 +33,7 @@ def test_influxdb_data_retention_with_opcua(setup_helm_environment):
     # Get the current system time
     
     assert helm_utils.setup_sample_app_udf_deployment_package(chart_path) == True, "Failed to set up wind turbine anomaly detector for opcua input plugin"
-    logger.info(f"UDF deployment package is activated and wait for the pods to stabilize in {sleep} seconds")
+    logger.info(f"UDF deployment package is activated and wait for the pods to stabilize in {wait_time} seconds")
 
     time.sleep(wait_time)  # Wait for the pods to stabilize    
     assert helm_utils.verify_pods_logs(namespace, "DEBUG") is True, "Pods logs are not working for opcua input plugin"
@@ -66,5 +66,4 @@ def test_influxdb_data_retention_with_opcua(setup_helm_environment):
     else:
         logger.error("InfluxDB command is not fetched properly")
         success = False
-    assert success is True, "InfluxDB retention duration is working as expected for opcua input plugin" 
-    assert success is False, "InfluxDB retention duration is not working as expected for opcua input plugin"
+    assert success is True, "InfluxDB retention duration is not working as expected for opcua input plugin"

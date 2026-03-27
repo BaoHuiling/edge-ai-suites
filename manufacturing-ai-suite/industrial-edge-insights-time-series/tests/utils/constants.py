@@ -85,7 +85,7 @@ import os
 PYTEST_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../functional'))
 WIND_INGESTED_CSV= "/apps/wind-turbine-anomaly-detection/simulation-data/wind-turbine-anomaly-detection.csv"
 WELD_INGESTED_CSV= "/apps/weld-anomaly-detection/simulation-data/burnthrough_weld_12-14-22-0201-02.csv"
-EDGE_AI_SUITES_DIR = os.path.join(os.path.dirname(__file__), "../../../industrial-edge-insights-time-series")
+EDGE_AI_SUITES_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../industrial-edge-insights-time-series"))
 WIND_TURBINE_INGESTED_TOPIC = "wind-turbine-data"
 WIND_TURBINE_ANALYTICS_TOPIC = "wind-turbine-anomaly-data"
 WELD_INGESTED_TOPIC = "weld-sensor-data"

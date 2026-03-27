@@ -406,7 +406,7 @@ def generate_test_credentials(case_type="valid", invalid_field=None):
         raise ValueError(f"Unknown case_type: {case_type}")
     
 def check_and_set_working_directory(return_original=True):
-    """Check current working directory and change to wind turbine directory using dynamic path resolution.
+    """Check current working directory and change to Edge AI Suites directory.
     
     Args:
         return_original (bool): If True, returns the original directory path for later restoration
@@ -417,31 +417,8 @@ def check_and_set_working_directory(return_original=True):
     """
     current_dir = os.getcwd()
     logger.info(f"Current working directory: {current_dir}")
-    
-    # Dynamic path resolution logic similar to current_dir() function
-     
 
-    # Check if we're already in or below the target directory
-    if "edge-ai-suites" in current_dir:
-        logger.info("Already in edge-ai-suites directory structure")
-        
-        # Split the path and find where the target directory starts
-        parts = current_dir.split(os.sep)
-        
-        try:
-            edge_index = parts.index('edge-ai-suites')
-            # Take everything up to 'edge-ai-suites' and rebuild the path
-            root_parts = parts[:edge_index]
-            root_path = os.sep.join(root_parts) if root_parts else os.sep
-            
-            # Rebuild the target path
-            target_dir = os.path.join(root_path, constants.TARGET_SUBPATH)
-        except ValueError:
-            # If 'edge-ai-suites' not found in parts, use constants
-            target_dir = os.path.join(current_dir, constants.EDGE_AI_SUITES_DIR)
-    else:
-        # If not in edge-ai-suites structure, use constants to build path
-        target_dir = constants.EDGE_AI_SUITES_DIR
+    target_dir = constants.EDGE_AI_SUITES_DIR
     
     # Normalize the path to remove any double slashes
     target_dir = os.path.normpath(target_dir)
@@ -1572,9 +1549,9 @@ def validate_mqtt_alert_system(sample_app=constants.WIND_SAMPLE_APP):
     logger.info(f"\nStep 1: Checking for {alert_type.upper()} alerts configuration pattern...")
     if sample_app == constants.WIND_SAMPLE_APP:
         update_config_pattern = update_config_file(ingestion_type)
-    if not update_config_pattern:
-        logger.error(f"✗ Step 1 FAILED: to update {alert_type.upper()} configuration via REST API")
-        return False
+        if not update_config_pattern:
+            logger.error(f"✗ Step 1 FAILED: to update {alert_type.upper()} configuration via REST API")
+            return False
     
     # Step 2: Check container logs for alert pattern using common_utils for proper weld support
     logger.info(f"\nStep 2: Checking container logs for {alert_type.upper()} alert pattern...")
@@ -1691,18 +1668,17 @@ def execute_influxdb_commands(container_name="ia-influxdb", measurement=None):
         # Step 3: Execute InfluxDB commands inside the container
         if measurement:
             # Query specific measurement(s)
-            if measurement == "weld-sensor-data":
-                query_part = f"SELECT * FROM weld_sensor_data LIMIT 5; SELECT * FROM weld_sensor_anomaly_data LIMIT 5"
-                verify_tables = ["weld_sensor_data", "weld_sensor_anomaly_data"]
+            if measurement == constants.WELD_INGESTED_TOPIC:
+                query_part = f"SELECT * FROM \"{constants.WELD_INGESTED_TOPIC}\" LIMIT 5; SELECT * FROM \"{constants.WELD_ANALYTICS_TOPIC}\" LIMIT 5"
+                verify_tables = [constants.WELD_INGESTED_TOPIC, constants.WELD_ANALYTICS_TOPIC]
             else:
                 # Default to wind turbine or handle other measurements
-                query_part = f"SELECT * FROM {measurement.replace('-', '_')} LIMIT 5"
-                verify_tables = [measurement.replace('-', '_')]
+                query_part = f"SELECT * FROM \"{measurement.replace('_', '-')}\" LIMIT 5"
+                verify_tables = [measurement.replace('_', '-')]
         else:
             # Default wind turbine queries for backward compatibility
-            query_part = "SELECT * FROM wind_turbine_data LIMIT 5; SELECT * FROM wind_turbine_anomaly_data LIMIT 5"
-            verify_tables = ["wind_turbine_data", "wind_turbine_anomaly_data"]
-        
+            query_part = f"SELECT * FROM \"{constants.WIND_TURBINE_INGESTED_TOPIC}\" LIMIT 5; SELECT * FROM \"{constants.WIND_TURBINE_ANALYTICS_TOPIC}\" LIMIT 5"
+            verify_tables = [constants.WIND_TURBINE_INGESTED_TOPIC, constants.WIND_TURBINE_ANALYTICS_TOPIC]
         influx_execute = f"SHOW MEASUREMENTS; {query_part}"
 
         exec_command = [
@@ -1744,7 +1720,7 @@ def execute_influxdb_commands(container_name="ia-influxdb", measurement=None):
 def verify_influxdb_retention_docker(response=None, container_name=constants.CONTAINERS["influxdb"]["name"]):
     """
     Execute InfluxDB commands inside the InfluxDB Docker container to verify retention.
-    Returns the earliest time value in 'wind_turbine_data' and a success flag.
+    Returns the earliest time value in the measurement and a success flag.
     """
     logger.info(f"Executing InfluxDB retention check in container '{container_name}'...")
     try:
@@ -1761,7 +1737,7 @@ def verify_influxdb_retention_docker(response=None, container_name=constants.CON
             return None, False
 
         # Step 3: Execute InfluxDB query to get the earliest time value
-        influx_execute = "SELECT time, wind_speed FROM wind_turbine_data ORDER BY time ASC LIMIT 1"
+        influx_execute = f"SELECT time, wind_speed FROM \"{constants.WIND_TURBINE_INGESTED_TOPIC}\" ORDER BY time ASC LIMIT 1"
         exec_command = [
             "docker", "exec", container_name,
             "influx", "-username", influxdb_username, "-password", influxdb_password,
@@ -1779,10 +1755,10 @@ def verify_influxdb_retention_docker(response=None, container_name=constants.CON
         output_lines = result.stdout.strip().split('\n')
         time_value = output_lines[3].split()[0] if len(output_lines) >= 4 else ""
         if time_value:
-            logger.info(f"First time value in 'wind_turbine_data': {time_value}")
+            logger.info(f"First time value in '{constants.WIND_TURBINE_INGESTED_TOPIC}': {time_value}")
             return time_value, True
         else:
-            logger.info("No time data found in 'wind_turbine_data'.")
+            logger.info(f"No time data found in '{constants.WIND_TURBINE_INGESTED_TOPIC}'.")
             return None, False
 
     except subprocess.CalledProcessError as e:

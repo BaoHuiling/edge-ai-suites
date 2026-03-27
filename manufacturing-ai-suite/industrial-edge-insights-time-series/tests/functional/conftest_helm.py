@@ -8,9 +8,9 @@ import pytest
 import logging
 import sys
 import os
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from utils import helm_utils
 from utils import constants
-import constants
 import time
 
 # Set up logger
