@@ -4,17 +4,21 @@
 import logging
 import warnings
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="[%(levelname)s] %(asctime)s.%(msecs)03d [%(name)s]: %(message)s",
-    datefmt='%Y-%m-%d %H:%M:%S',
-    force=True,
-)
+class _ShortNameFormatter(logging.Formatter):
+    def format(self, record):
+        record.name = record.name.rsplit('.', 1)[-1]
+        return super().format(record)
+
+_fmt = "%(levelname)s: [%(name)s] %(message)s"
+_datefmt = '%Y-%m-%d %H:%M:%S'
+logging.basicConfig(level=logging.INFO, format=_fmt, datefmt=_datefmt, force=True)
+for _h in logging.root.handlers:
+    _h.setFormatter(_ShortNameFormatter(_fmt, datefmt=_datefmt))
 for _noisy in [
     "unstructured", "unstructured_inference", "detectron2",
     "transformers", "urllib3", "httpx", "httpcore",
     "opentelemetry", "PIL", "chromadb", "llama_index",
-    "multimodal_embedding_serving", "sentence_transformers",
+    "sentence_transformers",
     "huggingface_hub", "filelock", "optimum",
     "pdfminer", "torch", "torch.jit", "timm",
 ]:

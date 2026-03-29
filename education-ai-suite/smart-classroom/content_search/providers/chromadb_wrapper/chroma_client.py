@@ -1,8 +1,11 @@
 # Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
+import logging
 import chromadb
 from utils.config_loader import config
+
+logger = logging.getLogger(__name__)
 
 _chroma_cfg = config.content_search.chromadb
 
@@ -17,12 +20,12 @@ class ChromaClientWrapper:
             self.collection = self.client.get_or_create_collection(name=collection_name)
             return self.collection
         except Exception as e:
-            print(f"Failed to load collection {collection_name}: {e}")
+            logger.error(f"Failed to load collection '{collection_name}' (is ChromaDB running?): {e}")
             return None
 
     def create_collection(self, collection_name: str = "default"):
         if self.load_collection(collection_name):
-            print(f"Collection {collection_name} already exists and is loaded.")
+            logger.info(f"Collection '{collection_name}' already exists and is loaded.")
             return
         
         self.collection = self.client.create_collection(name=collection_name)

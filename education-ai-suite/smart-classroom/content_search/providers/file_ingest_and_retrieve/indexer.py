@@ -4,10 +4,10 @@
 import logging
 import copy
 
-from moviepy.editor import VideoFileClip
+from moviepy import VideoFileClip
 from PIL import Image
 
-from multimodal_embedding_serving import get_model_handler, EmbeddingModel
+from content_search.providers.file_ingest_and_retrieve.embedding import get_model_handler, EmbeddingModel
 from llama_index.embeddings.huggingface_openvino import OpenVINOEmbedding
 
 from content_search.providers.chromadb_wrapper.chroma_client import ChromaClientWrapper
