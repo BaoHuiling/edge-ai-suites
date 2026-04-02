@@ -167,7 +167,7 @@ class DocumentParser:
         if not is_supported_file(file_path):
             raise ValueError(
                 f"Unsupported file format: {Path(file_path).suffix}. "
-                f"Supported: txt, pdf, docx, pptx, xlsx, html, htm, xml, md, rst"
+                f"Supported: txt, pdf, docx, pptx, xlsx, html, htm, xml, md"
             )
 
         # Check for legacy formats that need LibreOffice

@@ -162,9 +162,8 @@ async def ingest_minio_dir(request: IngestMinioDirRequest = Body(...)):
 
         store = MinioStore(minio_store.client, bucket_name)
 
-        # TODO: Supported file extensions, verify
         supported_extensions = ('.jpg', '.png', '.jpeg', '.mp4', '.txt', '.pdf', '.docx', '.doc',
-                                '.pptx', '.ppt', '.xlsx', '.xls', '.html', '.htm', '.xml', '.md', '.rst')
+                                '.pptx', '.ppt', '.xlsx', '.xls', '.html', '.htm', '.xml', '.md')
 
         def _blocking_ingest():
             proc_files = []

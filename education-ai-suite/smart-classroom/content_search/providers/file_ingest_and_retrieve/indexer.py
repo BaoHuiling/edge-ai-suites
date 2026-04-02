@@ -319,7 +319,7 @@ class Indexer:
         do_detect_and_crop = kwargs.get("do_detect_and_crop", True)
         entities = []
         doc_extensions = ('.txt', '.pdf', '.docx', '.doc', '.pptx', '.ppt', '.xlsx',
-                          '.xls', '.html', '.htm', '.xml', '.md', '.rst')
+                          '.xls', '.html', '.htm', '.xml', '.md')
 
         for file, meta in zip(files, metas):
             if meta["file_path"] in self.visual_id_map or meta["file_path"] in self.document_id_map:
