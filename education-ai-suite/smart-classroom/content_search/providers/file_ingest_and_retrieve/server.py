@@ -429,13 +429,20 @@ async def retrieval(request: RetrievalRequest):
 
         # Format results
         ret = []
+        scores = results.get("scores", [[]])[0] if results else []
+        reranker_scores = results.get("reranker_scores", [[]])[0] if results and "reranker_scores" in results else []
         if results and results['ids']:
             for i in range(len(results['ids'][0])):
-                ret.append({
+                item = {
                     "id": results['ids'][0][i],
                     "distance": results['distances'][0][i],
-                    "meta": results['metadatas'][0][i]
-                })
+                    "meta": results['metadatas'][0][i],
+                }
+                if i < len(scores):
+                    item["score"] = scores[i]
+                if i < len(reranker_scores) and reranker_scores[i] is not None:
+                    item["reranker_score"] = reranker_scores[i]
+                ret.append(item)
 
         # Return the results
         return JSONResponse(
