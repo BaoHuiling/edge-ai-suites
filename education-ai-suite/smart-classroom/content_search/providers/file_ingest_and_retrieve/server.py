@@ -26,7 +26,9 @@ for _noisy in [
     logging.getLogger(_noisy).setLevel(logging.WARNING)
 warnings.filterwarnings("ignore", category=FutureWarning, module="timm")
 
-from fastapi import FastAPI, HTTPException, Body
+import base64
+
+from fastapi import FastAPI, File, Form, HTTPException, Body, UploadFile
 from fastapi.responses import JSONResponse
 import os
 
@@ -370,6 +372,42 @@ def delete_file_in_db(file_path: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error deleting file: {str(e)}")
 
+@app.delete("/v1/dataprep/delete_by_ids")
+def delete_by_ids(ids: list[str] = Body(..., embed=True)):
+    """
+    Delete specific entries by their IDs.
+
+    Args:
+        ids: List of integer IDs to delete.
+
+    Returns:
+        JSONResponse: A response indicating success or failure.
+    """
+    try:
+        if not ids:
+            raise HTTPException(status_code=400, detail="'ids' must be a non-empty list.")
+
+        res, removed_ids = indexer.delete_by_ids(ids)
+
+        if not removed_ids:
+            return JSONResponse(
+                content={"message": "No matching IDs found in the database.", "removed_ids": []},
+                status_code=200,
+            )
+
+        return JSONResponse(
+            content={
+                "message": f"Successfully deleted {len(removed_ids)} entries. db returns: {res}",
+                "removed_ids": removed_ids,
+            },
+            status_code=200,
+        )
+    except HTTPException as http_exc:
+        raise http_exc
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error deleting by IDs: {str(e)}")
+
+
 @app.delete("/v1/dataprep/delete_all")
 def clear_db():
     """
@@ -435,34 +473,70 @@ async def retrieval(request: RetrievalRequest):
                 logger.error(f"Error processing image_base64: {e}")
                 raise HTTPException(status_code=400, detail=f"Error processing image_base64: {str(e)}")
 
-        # Format results
-        ret = []
-        scores = results.get("scores", [[]])[0] if results else []
-        reranker_scores = results.get("reranker_scores", [[]])[0] if results and "reranker_scores" in results else []
-        if results and results['ids']:
-            for i in range(len(results['ids'][0])):
-                item = {
-                    "id": results['ids'][0][i],
-                    "distance": results['distances'][0][i],
-                    "meta": results['metadatas'][0][i],
-                }
-                if i < len(scores):
-                    item["score"] = scores[i]
-                if i < len(reranker_scores) and reranker_scores[i] is not None:
-                    item["reranker_score"] = reranker_scores[i]
-                ret.append(item)
-
-        # Return the results
-        return JSONResponse(
-            content={
-                "results": ret
-            },
-            status_code=200,
-        )
+        return _format_retrieval_response(results)
     except HTTPException as http_exc:
-        # Re-raise HTTPExceptions to preserve their status code and message
         raise http_exc
     except Exception as e:
         logger.error(f"Error during retrieval: {e}")
         raise HTTPException(status_code=500, detail=f"Error during retrieval: {str(e)}")
+
+
+@app.post("/v1/retrieval/image")
+async def retrieval_by_image(
+    image: UploadFile = File(...),
+    filter: Optional[str] = Form(None),
+    max_num_results: int = Form(10),
+):
+    """
+    Perform image-based retrieval by uploading an image file directly.
+
+    Args:
+        image: The image file to use as query.
+        filter: Optional JSON string of filters (e.g. '{"course": "CS101"}').
+        max_num_results: Maximum number of results to return.
+    """
+    try:
+        if max_num_results <= 0 or max_num_results > 16384:
+            raise HTTPException(status_code=400, detail="max_num_results must be in [1, 16384].")
+
+        content = await image.read()
+        image_b64 = base64.b64encode(content).decode()
+
+        filters = None
+        if filter:
+            import json
+            try:
+                filters = json.loads(filter)
+            except json.JSONDecodeError:
+                raise HTTPException(status_code=400, detail="'filter' must be a valid JSON string.")
+
+        results = await asyncio.to_thread(
+            retriever.search, image_base64=image_b64, filters=filters, top_k=max_num_results,
+        )
+        return _format_retrieval_response(results)
+    except HTTPException as http_exc:
+        raise http_exc
+    except Exception as e:
+        logger.error(f"Error during image retrieval: {e}")
+        raise HTTPException(status_code=500, detail=f"Error during image retrieval: {str(e)}")
+
+
+def _format_retrieval_response(results: dict) -> JSONResponse:
+    """Format retrieval results into a JSON response."""
+    ret = []
+    scores = results.get("scores", [[]])[0] if results else []
+    reranker_scores = results.get("reranker_scores", [[]])[0] if results and "reranker_scores" in results else []
+    if results and results['ids']:
+        for i in range(len(results['ids'][0])):
+            item = {
+                "id": results['ids'][0][i],
+                "distance": results['distances'][0][i],
+                "meta": results['metadatas'][0][i],
+            }
+            if i < len(scores):
+                item["score"] = scores[i]
+            if i < len(reranker_scores) and reranker_scores[i] is not None:
+                item["reranker_score"] = reranker_scores[i]
+            ret.append(item)
+    return JSONResponse(content={"results": ret}, status_code=200)
 

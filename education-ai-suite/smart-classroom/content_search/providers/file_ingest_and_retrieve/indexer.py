@@ -161,6 +161,57 @@ class Indexer:
         logger.warning(f"File {file_path} not found in id_map.")
         return None, []
 
+    def delete_by_ids(self, ids):
+        """Delete specific entries by their IDs and update id_maps accordingly.
+
+        Args:
+            ids: List of IDs (as strings, matching ChromaDB internal format)
+        """
+        visual_ids = []
+        document_ids = []
+
+        id_set = set(str(i) for i in ids)
+
+        # Find which collection each ID belongs to and remove from id_maps
+        for file_path, file_ids in list(self.visual_id_map.items()):
+            remaining = [i for i in file_ids if i not in id_set]
+            removed = [i for i in file_ids if i in id_set]
+            visual_ids.extend(removed)
+            if remaining:
+                self.visual_id_map[file_path] = remaining
+            elif removed:
+                del self.visual_id_map[file_path]
+
+        for file_path, file_ids in list(self.document_id_map.items()):
+            remaining = [i for i in file_ids if i not in id_set]
+            removed = [i for i in file_ids if i in id_set]
+            document_ids.extend(removed)
+            if remaining:
+                self.document_id_map[file_path] = remaining
+            elif removed:
+                del self.document_id_map[file_path]
+
+        res = {}
+        if visual_ids:
+            res["visual"] = self.client.delete(collection_name=self.visual_collection_name, ids=visual_ids)
+        if document_ids:
+            res["document"] = self.client.delete(collection_name=self.document_collection_name, ids=document_ids)
+
+        removed_ids = visual_ids + document_ids
+        not_found = [i for i in ids if i not in removed_ids]
+
+        # Fallback: try deleting orphaned IDs directly from both collections
+        if not_found:
+            logger.warning(f"IDs not found in id_map, attempting direct DB delete: {not_found}")
+            for collection_name in [self.visual_collection_name, self.document_collection_name]:
+                try:
+                    self.client.delete(collection_name=collection_name, ids=not_found)
+                except Exception as e:
+                    logger.debug(f"Fallback delete from '{collection_name}' failed: {e}")
+            removed_ids.extend(not_found)
+
+        return res, removed_ids
+
     def delete_all(self):
         all_ids = []
         res_visual = res_document = None
