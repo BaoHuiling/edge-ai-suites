@@ -48,7 +48,7 @@ class PostProcessor:
             local_path.mkdir(parents=True, exist_ok=True)
             self.tokenizer.save_pretrained(str(local_path))
             self.reranker_model.save_pretrained(str(local_path))
-        logger.info("Reranker model loaded successfully.")
+        logger.info(f"Reranker model '{reranker_model}' loaded successfully on device '{device}'.")
 
 
     def process_text_query_results(

@@ -429,6 +429,6 @@ content_search:
     reranker:
       enabled: true
       model: "BAAI/bge-reranker-large"
-      device: "CPU"
+      device: "GPU"
       dedup_time_threshold: 5    # seconds — frames closer than this from the same video are merged
       overfetch_multiplier: 3    # retrieve top_k * N candidates from DB before post-processing
