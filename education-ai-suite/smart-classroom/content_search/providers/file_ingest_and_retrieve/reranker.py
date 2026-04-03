@@ -48,7 +48,7 @@ class PostProcessor:
             local_path.mkdir(parents=True, exist_ok=True)
             self.tokenizer.save_pretrained(str(local_path))
             self.reranker_model.save_pretrained(str(local_path))
-        logger.info("Reranker model loaded successfully.")
+        logger.info(f"Reranker model '{reranker_model}' loaded successfully on device '{device}'.")
 
 
     def process_text_query_results(
@@ -118,23 +118,26 @@ class PostProcessor:
         for file_path, frames in videos.items():
             frames.sort(key=lambda r: r["meta"].get("video_pin_second", 0))
             cluster_best = frames[0]
+            cluster_start = cluster_best["meta"].get("video_pin_second", 0)
             removed_count = 0
             for frame in frames[1:]:
                 t_cur = frame["meta"].get("video_pin_second", 0)
-                t_best = cluster_best["meta"].get("video_pin_second", 0)
-                if t_cur - t_best < self.dedup_time_threshold:
+                if t_cur - cluster_start < self.dedup_time_threshold:
                     # Same temporal cluster — keep the better score
                     removed_count += 1
                     if frame["distance"] < cluster_best["distance"]:
-                        logger.debug("[dedup] %s: t=%.1fs replaces t=%.1fs (dist %.4f < %.4f)",
-                                     file_path, t_cur, t_best, frame["distance"], cluster_best["distance"])
+                        logger.debug("[dedup] %s: t=%.1fs replaces t=%.1fs (dist %.4f < %.4f, cluster start=%.1fs)",
+                                     file_path, t_cur,
+                                     cluster_best["meta"].get("video_pin_second", 0),
+                                     frame["distance"], cluster_best["distance"], cluster_start)
                         cluster_best = frame
                     else:
-                        logger.debug("[dedup] %s: t=%.1fs dropped (within %.1fs of t=%.1fs)",
-                                     file_path, t_cur, self.dedup_time_threshold, t_best)
+                        logger.debug("[dedup] %s: t=%.1fs dropped (within %.1fs of cluster start=%.1fs)",
+                                     file_path, t_cur, self.dedup_time_threshold, cluster_start)
                 else:
                     deduped.append(cluster_best)
                     cluster_best = frame
+                    cluster_start = t_cur
             deduped.append(cluster_best)
             if removed_count:
                 logger.debug("[dedup] %s: %d/%d frames kept after dedup (threshold=%.1fs)",
