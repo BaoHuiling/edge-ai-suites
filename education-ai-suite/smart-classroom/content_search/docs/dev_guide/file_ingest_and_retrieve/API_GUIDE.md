@@ -111,8 +111,7 @@ Ingest a single file from MinIO
 | `bucket_name` | string | Yes | — | MinIO bucket name |
 | `file_path` | string | Yes | — | Path to the file inside the bucket |
 | `meta` | object | No | `{}` | Extra metadata to store alongside the file |
-| `frame_extract_interval` | integer | No | `15` | For video files: extract a frame every N frames |
-| `do_detect_and_crop` | boolean | No | `false` | Run object detection and crop detected regions before embedding |
+
 
 #### Example
 
@@ -121,21 +120,8 @@ curl -X POST http://localhost:9990/v1/dataprep/ingest \
   -H "Content-Type: application/json" \
   -d '{
     "bucket_name": "my-bucket",
-    "file_path": "documents/report.pdf"
-  }'
-```
-
-With optional metadata and video settings:
-
-```bash
-curl -X POST http://localhost:9990/v1/dataprep/ingest \
-  -H "Content-Type: application/json" \
-  -d '{
-    "bucket_name": "my-bucket",
     "file_path": "videos/lecture.mp4",
-    "meta": { "course": "CS101", "semester": "Spring 2026" },
-    "frame_extract_interval": 30,
-    "do_detect_and_crop": true
+    "meta": { "course": "CS101", "semester": "Spring 2026" }
   }'
 ```
 
@@ -174,8 +160,6 @@ Ingest a directory from MinIO, all supported files found under a given folder pr
 | `bucket_name` | string | Yes | — | MinIO bucket name |
 | `folder_path` | string | Yes | — | Folder prefix inside the bucket |
 | `meta` | object | No | `{}` | Extra metadata applied to every file ingested from the directory |
-| `frame_extract_interval` | integer | No | `15` | For video files: extract a frame every N frames |
-| `do_detect_and_crop` | boolean | No | `false` | Run object detection and crop detected regions before embedding |
 
 #### Example
 

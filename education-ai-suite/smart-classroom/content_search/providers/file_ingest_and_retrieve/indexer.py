@@ -241,7 +241,7 @@ class Indexer:
             raise RuntimeError("Document embedding model not available.")
         return self.document_embedding_model.get_text_embedding(text)
 
-    def process_video(self, video_path, meta, frame_interval=15, minimal_duration=1, do_detect_and_crop=True):
+    def process_video(self, video_path, meta, frame_interval=15, do_detect_and_crop=True):
         entities = []
         video = VideoFileClip(video_path)
         frame_counter = 0
@@ -366,7 +366,6 @@ class Indexer:
             raise ValueError(f"Number of files and metas must be the same. files: {len(files)}, metas: {len(metas)}")
         
         frame_interval = kwargs.get("frame_interval", 15)
-        minimal_duration = kwargs.get("minimal_duration", 1)
         do_detect_and_crop = kwargs.get("do_detect_and_crop", True)
         entities = []
         doc_extensions = ('.txt', '.pdf', '.docx', '.doc', '.pptx', '.ppt', '.xlsx',
@@ -380,7 +379,7 @@ class Indexer:
             if file_lower.endswith('.mp4'):
                 meta["type"] = "video"
                 logger.info(f"Processing video: {file}")
-                entities.extend(self.process_video(file, meta, frame_interval, minimal_duration, do_detect_and_crop))
+                entities.extend(self.process_video(file, meta, frame_interval, do_detect_and_crop))
             elif file_lower.endswith(('.jpg', '.png', '.jpeg')):
                 meta["type"] = "image"
                 logger.info(f"Processing image: {file}")

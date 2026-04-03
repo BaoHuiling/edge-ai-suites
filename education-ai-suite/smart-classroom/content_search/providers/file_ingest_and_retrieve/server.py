@@ -71,15 +71,11 @@ class IngestMinioDirRequest(_IngestRequestBase):
     bucket_name: str
     folder_path: str
     meta: dict = {}
-    frame_extract_interval: int = 15
-    do_detect_and_crop: bool = False
 
 class IngestMinioFileRequest(_IngestRequestBase):
     bucket_name: str
     file_path: str
     meta: dict = {}
-    frame_extract_interval: int = 15
-    do_detect_and_crop: bool = False
 
 class IngestTextRequest(_IngestRequestBase):
     bucket_name: Optional[str] = None
@@ -98,6 +94,10 @@ indexer = Indexer(collection_name=_collection_name, visual_embedding_model=_visu
 retriever = ChromaRetriever(collection_name=_collection_name, visual_embedding_model=_visual_model, document_embedding_model=_document_model)
 
 minio_store = MinioStore.from_config()
+
+_frame_extract_interval = int(os.getenv("FRAME_EXTRACT_INTERVAL", "15"))
+_do_detect_and_crop = os.getenv("DO_DETECT_AND_CROP", "false").lower() == "true"
+logger.info(f"Video ingest config: frame_extract_interval={_frame_extract_interval}, do_detect_and_crop={_do_detect_and_crop}")
 
 @app.get("/v1/dataprep/health")
 def health():
@@ -156,8 +156,6 @@ async def ingest_minio_dir(request: IngestMinioDirRequest = Body(...)):
         bucket_name = request.bucket_name
         folder_path = request.folder_path
         meta = request.meta
-        frame_extract_interval = request.frame_extract_interval
-        do_detect_and_crop = request.do_detect_and_crop
 
         if not minio_store.client.bucket_exists(bucket_name):
             raise HTTPException(status_code=404, detail=f"Bucket {bucket_name} not found.")
@@ -186,7 +184,7 @@ async def ingest_minio_dir(request: IngestMinioDirRequest = Body(...)):
                 if not proc_files:
                     return None
 
-                return indexer.add_embedding(proc_files, metas, frame_extract_interval=frame_extract_interval, do_detect_and_crop=do_detect_and_crop)
+                return indexer.add_embedding(proc_files, metas, frame_extract_interval=_frame_extract_interval, do_detect_and_crop=_do_detect_and_crop)
 
         res = await asyncio.to_thread(_blocking_ingest)
 
@@ -209,8 +207,6 @@ async def ingest_minio_file(request: IngestMinioFileRequest = Body(...)):
         bucket_name = request.bucket_name
         file_path = request.file_path
         meta = request.meta
-        frame_extract_interval = request.frame_extract_interval
-        do_detect_and_crop = request.do_detect_and_crop
 
         if not minio_store.client.bucket_exists(bucket_name):
             raise HTTPException(status_code=404, detail=f"Bucket {bucket_name} not found.")
@@ -223,7 +219,7 @@ async def ingest_minio_file(request: IngestMinioFileRequest = Body(...)):
                 store.get_file(file_path, local_file_path)
                 logger.info(f"Successfully downloaded file from MinIO: {local_file_path}")
                 meta["file_path"] = f"minio://{bucket_name}/{file_path}"
-                return indexer.add_embedding([local_file_path], [meta], frame_extract_interval=frame_extract_interval, do_detect_and_crop=do_detect_and_crop)
+                return indexer.add_embedding([local_file_path], [meta], frame_extract_interval=_frame_extract_interval, do_detect_and_crop=_do_detect_and_crop)
 
         res = await asyncio.to_thread(_blocking_ingest)
 
