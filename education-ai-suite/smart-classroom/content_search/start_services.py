@@ -39,7 +39,7 @@ def _load_config_to_env(config_path: str = "config.yaml") -> None:
 
         def _set(k, v):
             if v is not None:
-                os.environ.setdefault(k, str(v))
+                os.environ[k] = str(v)
 
         # ChromaDB
         chroma = cs.get("chromadb", {})

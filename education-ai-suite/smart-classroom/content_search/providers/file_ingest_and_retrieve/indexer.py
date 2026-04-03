@@ -241,14 +241,19 @@ class Indexer:
             raise RuntimeError("Document embedding model not available.")
         return self.document_embedding_model.get_text_embedding(text)
 
-    def process_video(self, video_path, meta, frame_interval=15, do_detect_and_crop=True):
+    def process_video(self, video_path, meta, frame_extract_interval=15, do_detect_and_crop=True):
         entities = []
         video = VideoFileClip(video_path)
         frame_counter = 0
-        frame_interval = int(frame_interval)
+        frame_extract_interval = int(frame_extract_interval)
         fps = video.fps
+        total_frames = int(video.duration * fps)
+        extracted_count = 0
+        logger.debug(f"Video {video_path}: fps={fps}, total_frames={total_frames}, frame_extract_interval={frame_extract_interval}, "
+                     f"estimated extractions={total_frames // frame_extract_interval + 1}")
         for frame in video.iter_frames():
-            if frame_counter % frame_interval == 0:
+            if frame_counter % frame_extract_interval == 0:
+                extracted_count += 1
                 image = Image.fromarray(frame)
                 seconds = frame_counter / fps
                 meta_data = copy.deepcopy(meta)
@@ -268,7 +273,7 @@ class Indexer:
                 entities.append(node)
                 self._update_id_map(self.visual_id_map, meta_data["file_path"], node["id"])
             frame_counter += 1
-        logger.info(f"Processed video {video_path}: {len(entities)} embeddings")
+        logger.info(f"Processed video {video_path}: {extracted_count} frames extracted, {len(entities)} embeddings")
         return entities
 
     def process_image(self, image_path, meta, do_detect_and_crop=True):
@@ -365,7 +370,7 @@ class Indexer:
         if len(files) != len(metas):
             raise ValueError(f"Number of files and metas must be the same. files: {len(files)}, metas: {len(metas)}")
         
-        frame_interval = kwargs.get("frame_interval", 15)
+        frame_extract_interval = kwargs.get("frame_extract_interval")
         do_detect_and_crop = kwargs.get("do_detect_and_crop", True)
         entities = []
         doc_extensions = ('.txt', '.pdf', '.docx', '.doc', '.pptx', '.ppt', '.xlsx',
@@ -379,7 +384,7 @@ class Indexer:
             if file_lower.endswith('.mp4'):
                 meta["type"] = "video"
                 logger.info(f"Processing video: {file}")
-                entities.extend(self.process_video(file, meta, frame_interval, do_detect_and_crop))
+                entities.extend(self.process_video(file, meta, frame_extract_interval, do_detect_and_crop))
             elif file_lower.endswith(('.jpg', '.png', '.jpeg')):
                 meta["type"] = "image"
                 logger.info(f"Processing image: {file}")
