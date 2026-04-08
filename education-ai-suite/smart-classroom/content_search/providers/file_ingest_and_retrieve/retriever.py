@@ -18,7 +18,7 @@ from providers.file_ingest_and_retrieve.models import (
 logger = logging.getLogger(__name__)
 
 class ChromaRetriever:
-    def __init__(self, collection_name="default", visual_embedding_model=None, document_embedding_model=None):
+    def __init__(self, collection_name="default", visual_embedding_model=None, document_embedding_model=None, video_summary_id_map=None):
         self.client = ChromaClientWrapper()
 
         self.visual_collection_name = collection_name
@@ -51,6 +51,8 @@ class ChromaRetriever:
         else:
             self._overfetch_multiplier = 1
             logger.info("PostProcessor (reranker) disabled — using simple merge.")
+
+        self.video_summary_id_map = video_summary_id_map if video_summary_id_map is not None else {}
 
     def get_text_embedding(self, query):
         embedding_tensor = self.visual_embedding_model.handler.encode_text(query)
@@ -179,3 +181,14 @@ class ChromaRetriever:
             "distances": [[c[0] for c in combined]],
             "scores": [scores],
         }
+
+    def get_video_summaries(self, file_path):
+
+        ids = self.video_summary_id_map.get(file_path, [])
+        if not ids:
+            return []
+        return self.client.get(
+            ids=ids,
+            output_fields=["id", "meta"],
+            collection_name=self.document_collection_name,
+        )
