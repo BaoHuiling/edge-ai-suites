@@ -48,7 +48,7 @@ from providers.file_ingest_and_retrieve.models import (
     get_document_embedding_model,
 )
 
-logger = logging.getLogger("visual_data_service")
+logger = logging.getLogger("server")
 
 class _IngestRequestBase(BaseModel):
     @field_validator('meta', check_fields=False)

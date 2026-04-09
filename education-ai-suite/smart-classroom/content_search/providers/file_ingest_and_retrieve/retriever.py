@@ -45,6 +45,9 @@ class ChromaRetriever:
                 device=reranker_device,
                 dedup_time_threshold=dedup_time_threshold,
                 overfetch_multiplier=overfetch_multiplier,
+                video_summary_id_map=video_summary_id_map if video_summary_id_map is not None else {},
+                chroma_client=self.client,
+                document_collection_name=self.document_collection_name,
             )
             self._overfetch_multiplier = overfetch_multiplier
             logger.info("PostProcessor (reranker) enabled.")
