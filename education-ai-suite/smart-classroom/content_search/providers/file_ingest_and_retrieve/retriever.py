@@ -90,16 +90,18 @@ class ChromaRetriever:
             elif key == "timestamp_end":
                 conditions.append({"timestamp": {"$lte": value}})
             elif isinstance(value, list):
-                # Use native ChromaDB $contains for array metadata fields (requires chromadb>=1.5.5)
-                contains_exprs = [{key: {"$contains": v}} for v in value]
-                if len(contains_exprs) == 1:
-                    conditions.extend(contains_exprs)
-                elif list_filter_mode == "and":
-                    # Option A: ALL values must be present
-                    conditions.append({"$and": contains_exprs})
+                # Array metadata fields (e.g. tags) use $contains; scalar fields use $eq
+                _ARRAY_FIELDS = {"tags"}
+                if key in _ARRAY_FIELDS:
+                    exprs = [{key: {"$contains": v}} for v in value]
                 else:
-                    # Option B (default): ANY value must be present
-                    conditions.append({"$or": contains_exprs})
+                    exprs = [{key: v} for v in value]
+                if len(exprs) == 1:
+                    conditions.extend(exprs)
+                elif list_filter_mode == "and":
+                    conditions.append({"$and": exprs})
+                else:
+                    conditions.append({"$or": exprs})
             else:
                 conditions.append({key: value})
 
