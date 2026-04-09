@@ -419,6 +419,7 @@ class PostProcessor:
     @staticmethod
     def _to_chroma_format(results: list[dict]) -> dict:
         """Convert flat result list back to ChromaDB nested format for backward compat."""
+        results.sort(key=lambda r: r.get("score", 0.0), reverse=True)
         output = {
             "ids": [[r["id"] for r in results]],
             "metadatas": [[r["meta"] for r in results]],
