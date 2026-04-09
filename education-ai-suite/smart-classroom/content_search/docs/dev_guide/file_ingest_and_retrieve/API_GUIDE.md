@@ -433,12 +433,75 @@ Search the index using a text query or a base64-encoded image. Returns the top-k
 |-------|------|----------|-------------|
 | `query` | string | One of `query` or `image_base64` | Natural language search query |
 | `image_base64` | string | One of `query` or `image_base64` | Base64-encoded image to search by visual similarity |
-| `filter` | object | No | Metadata filter to narrow results. Scalar fields use direct equality; list fields (e.g. `tags`) is parsed as `"or"`. |
+| `filter` | object | No | Metadata filter to narrow results (see [Filter usage](#filter-usage) below). |
 | `max_num_results` | integer | No (default `10`) | Max results per collection (1–16384). For text queries, up to `2 × max_num_results` may be returned (top-k from visual collection + top-k from document collection, merged and sorted by distance). For image queries, at most `max_num_results` are returned. |
 
 > **Note:** Provide exactly one of `query` or `image_base64` — not both.
 
-> **For Developer** A placeholder of list fields parsed as `"and"` is added.
+#### Filter usage
+
+Different filter keys are always combined with **AND**. When a filter value is a **list**, the matching logic depends on the field type:
+
+| Field type | Example fields | List behavior | Operator used |
+| ---------- | -------------- | ------------- | ------------- |
+| **Array metadata** | `tags` | Matches if the stored array contains **at least one** of the filter values | `$contains` |
+| **Scalar metadata** | `type`, `course`, `semester` | Matches if the stored value **equals any** of the filter values | `$eq` (OR) |
+
+> **For Developer:** A placeholder for list fields parsed as `"and"` (all values must match) is available via the `list_filter_mode` parameter internally.
+
+**Filter by tags** — returns results whose `tags` array contains `"biology"` or `"plants"`:
+
+```bash
+curl -X POST http://localhost:9990/v1/retrieval \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "lecture notes",
+    "filter": { "tags": ["biology", "plants"] },
+    "max_num_results": 5
+  }'
+```
+
+**Filter by type** — available values: `"video"`, `"image"`, `"document"`. If not specified, all types are returned. Example returns only `video` or `document` results:
+
+```bash
+curl -X POST http://localhost:9990/v1/retrieval \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "Newton first law",
+    "filter": { "type": ["video", "document"] },
+    "max_num_results": 5
+  }'
+```
+
+> **Note:** Video-type results may appear even when `"video"` is not explicitly selected in the `type` filter, because relevant document summaries can be converted into video results during post-processing. These constructed results have `"original_type": "constructed_from_summary"` in their metadata to distinguish them from native video frame results.
+
+**Filter for constructed summaries** — returns only video results that were constructed from document summaries:
+
+```bash
+curl -X POST http://localhost:9990/v1/retrieval \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "Newton first law",
+    "filter": { "original_type": "constructed_from_summary" },
+    "max_num_results": 10
+  }'
+```
+
+**Combined filter** — keys are ANDed together:
+
+```bash
+curl -X POST http://localhost:9990/v1/retrieval \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "lecture notes",
+    "filter": { "course": "CS101", "tags": ["biology", "plants"] },
+    "max_num_results": 3
+  }'
+```
+
+Returns results where `course` equals `"CS101"` **AND** `tags` contains `"biology"` or `"plants"`.
+
+---
 
 **Text search example**
 
@@ -464,20 +527,6 @@ curl -X POST http://localhost:9990/v1/retrieval \
     \"max_num_results\": 5
   }"
 ```
-
-**Filtered search example**
-
-```bash
-curl -X POST http://localhost:9990/v1/retrieval \
-  -H "Content-Type: application/json" \
-  -d '{
-    "query": "lecture notes",
-    "filter": { "course": "CS101", "tags": ["biology", "plants"] },
-    "max_num_results": 3
-  }'
-```
-
-Returns results of course "CS101" whose `tags` array contains `"biology"` **or** `"plants"`
 
 #### Response
 
