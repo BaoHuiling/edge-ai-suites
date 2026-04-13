@@ -425,7 +425,6 @@ content_search:
     frame_extract_interval: 30      # for video: extract a frame every N frames
     do_detect_and_crop: false        # for video/image: run object detection and crop before embedding
     reranker:
-      enabled: true
       model: "BAAI/bge-reranker-large"
       device: "GPU"
       dedup_time_threshold: 5    # seconds — frames closer than this from the same video are merged
