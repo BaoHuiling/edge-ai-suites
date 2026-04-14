@@ -81,6 +81,15 @@ class VideoAnalyticsPipelineService:
         self.pipeline_retry_counts: Dict[str, int] = {}
         self.max_retries = 10
 
+        ps = getattr(config.va_pipeline, "pose_statistics", None)
+        self.min_frames_for_transition = getattr(ps, "min_frames_for_transition", 3) if ps else 3
+        self.min_frames_for_transition_unid = getattr(ps, "min_frames_for_transition_unid", 15) if ps else 15
+        self.absence_threshold = getattr(ps, "absence_threshold", 90) if ps else 90
+        self.min_stand_frames = getattr(ps, "min_stand_frames", 10) if ps else 10
+        self.center_dist_threshold = getattr(ps, "center_dist_threshold", 0.1) if ps else 0.1
+        self.unidentified_max = getattr(ps, "unidentified_max", 50) if ps else 50
+        self.stale_unidentified_threshold = getattr(ps, "stale_unidentified_threshold", 30) if ps else 30
+
         # Register cleanup handler
         atexit.register(self._cleanup)
 
@@ -1203,14 +1212,12 @@ class VideoAnalyticsPipelineService:
         - Unidentified objects matched by bbox center distance instead of IoU (faster, more robust)
         - unidentified_objects list capped at 50 entries to bound O(N) scan cost
         """
-        MIN_FRAMES_FOR_TRANSITION = 3    # identified students: ~0.1s debounce
-        MIN_FRAMES_FOR_TRANSITION_UNID = 15  # unidentified (sitting) students: ~0.5s debounce
-                                             # id=0 sit_raise_up has 66.9% ghost noise (≤2f);
-                                             # threshold=15 filters 98% noise → ~93 sit-raises
-        ABSENCE_THRESHOLD = 90          # ~3s at 30fps; bridges 90.7% of ReID drop-out gaps
-        MIN_STAND_FRAMES = 10           # ~0.33s at 30fps; confirms stand vs ghost detection
-        CENTER_DIST_THRESHOLD = 0.1     # normalized image coords (~10% of frame dimension)
-        UNIDENTIFIED_MAX = 50
+        MIN_FRAMES_FOR_TRANSITION = self.min_frames_for_transition
+        MIN_FRAMES_FOR_TRANSITION_UNID = self.min_frames_for_transition_unid
+        ABSENCE_THRESHOLD = self.absence_threshold
+        MIN_STAND_FRAMES = self.min_stand_frames
+        CENTER_DIST_THRESHOLD = self.center_dist_threshold
+        UNIDENTIFIED_MAX = self.unidentified_max
 
         student_states = state["student_states"]
         student_stand_counts = state["student_stand_counts"]
@@ -1308,10 +1315,10 @@ class VideoAnalyticsPipelineService:
                         "last_seen_frame": frame_idx,
                     })
 
-        # Remove stale unidentified objects (not seen for 30 frames)
+        # Remove stale unidentified objects
         state["unidentified_objects"] = [
             obj for obj in unidentified_objects
-            if frame_idx - obj["last_seen_frame"] < 30
+            if frame_idx - obj["last_seen_frame"] < self.stale_unidentified_threshold
         ]
 
         # Remove students absent too long — re-appearance will count as a new stand-up
