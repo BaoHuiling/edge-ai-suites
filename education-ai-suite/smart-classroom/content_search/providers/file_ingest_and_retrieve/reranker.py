@@ -279,7 +279,9 @@ class PostProcessor:
                 "file_path": video_fp,
                 "type": "video",
                 "original_type": "constructed_from_summary",
-                "video_pin_second": mid_time,
+                "video_pin_second": round(mid_time, 2),
+                "video_start_second": round(start_time, 2),
+                "video_end_second": round(end_time, 2),
                 "summary_text": chunk_text,
                 "reranker_score": r.get("reranker_score"),
             }
