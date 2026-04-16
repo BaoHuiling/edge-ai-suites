@@ -40,7 +40,12 @@ The **audio pipeline** begins with audio preprocessing, where FFMPEG chunks inpu
 
 The **video analytics pipeline** processes up to three concurrent camera streams (front, back, content) through GStreamer-based processing graphs. Each stream passes through **YOLO-based person detection and pose estimation**, followed by **posture classification** (sit/stand, hand-raise) and **multi-model classification** (ResNet-18, MobileNet-V2, Person-ReID). All models run on OpenVINO with NPU by default. Processed video is streamed via a **MediaMTX RTSP server**, and per-frame metadata is aggregated into classroom engagement statistics.
 
-![High-Level System Diagram](./docs/user-guide/_assets/architecture.svg)
+<p align="center">
+  <img src="./docs/user-guide/_assets/architecture.svg" alt="High-Level Audio Pipeline Diagram" width="80%">
+</p>
+<p align="center">
+  <img src="./docs/user-guide/_assets/video-pipeline.svg" alt="High-Level Video Pipeline Diagram" width="80%">
+</p>
 
 For more information see [How it works](./docs/user-guide/how-it-works.md)
 
