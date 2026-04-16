@@ -36,9 +36,9 @@ To see the system requirements and other installations, see the following guides
 
 The architecture follows a modular, dual-pipeline design for comprehensive classroom analysis.
 
-The **audio pipeline** begins with audio preprocessing, where FFMPEG chunks input audio into smaller segments for optimal handling. These segments are processed by an **ASR transcriber** (e.g., Whisper or Paraformer) to convert speech into text. An **LLM summariser** (such as Qwen or Llama), optimised through frameworks like OpenVINO IR, Llama.cpp, or IPEX, generates concise summaries delivered via the output handler.
+The **audio pipeline** begins with audio preprocessing, where FFmpeg chunks input audio into smaller segments for optimal handling. These segments are processed by an **ASR transcriber** (e.g., Whisper or Paraformer) to convert speech into text. An **LLM summariser** (such as Qwen or Llama), optimised through frameworks like OpenVINO, or IPEX, generates concise summaries delivered via the output handler.
 
-The **video analytics pipeline** processes up to three concurrent camera streams (front, back, content) through GStreamer-based processing graphs. Each stream passes through **YOLO-based person detection and pose estimation**, followed by **posture classification** (sit/stand, hand-raise) and **multi-model classification** (ResNet-18, MobileNet-V2, Person-ReID). All models run on OpenVINO with NPU by default. Processed video is streamed via a **MediaMTX RTSP server**, and per-frame metadata is aggregated into classroom engagement statistics.
+The **video analytics pipeline** processes up to three concurrent camera streams (front, back, content) through DL Streamer-based processing graphs. Each stream passes through **YOLO-based person detection and pose estimation**, followed by **posture classification** (sit/stand, hand-raise) and **multi-model classification** (ResNet-18, MobileNet-V2, Person-ReID). All models run on OpenVINO with NPU by default. Processed video is streamed via a **MediaMTX RTSP server**, and per-frame metadata is aggregated into classroom engagement statistics.
 
 <p align="center">
   <img src="./docs/user-guide/_assets/architecture.svg" alt="High-Level Audio Pipeline Diagram" width="80%">

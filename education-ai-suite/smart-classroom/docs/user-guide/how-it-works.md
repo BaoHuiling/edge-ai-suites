@@ -20,7 +20,7 @@ The uploaded media is passed to the Backend API, which acts as the gateway to th
 The audio pipeline handles speech-to-text conversion and content summarization:
 
 - **Audio Pre-processing**
-  Cleans and formats audio data using FFMPEG, chunking input into segments for optimal processing.
+  Cleans and formats audio data using FFmpeg, chunking input into segments for optimal processing.
 
 - **ASR Component (Automatic Speech Recognition)**
   Converts audio into text using integrated ASR providers:
@@ -55,8 +55,8 @@ The VA pipeline runs three independent processing streams simultaneously:
 
 Each pipeline is built as a DL Streamer processing graph with the following stages:
 
-1. **Video Decode** — Input from RTSP stream or video file is decoded with hardware acceleration (D3D11)
-2. **Person Detection and Pose Estimation** — YOLO models (YOLOv26m-pose for front, YOLOv26s-pose for back) detect persons and estimate 17-keypoint skeletons per frame
+1. **Video Decode and Preprocessing** — Input from RTSP stream or video file is decoded and preprocessed with hardware acceleration (D3D11)
+2. **Person Detection and Pose Estimation** — YOLO models (YOLOv8m-pose for front, YOLOv8s-pose for back) detect persons and estimate 17-keypoint skeletons per frame
 3. **Posture Detection** — A custom DL Streamer element analyzes keypoint geometry to classify posture (sit/stand) and detect hand-raises
 4. **Multi-branch Classification** — Detected persons are routed through parallel classification branches:
      - **ResNet-18** for activity/action classification
