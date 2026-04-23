@@ -1,18 +1,12 @@
-# Get Started Guide
+# Get Started
 
 This Get Started Guide explains how to install the Autonomous Mobile Robot.
 
 ## Requirements
 
-### Knowledge Requirements
-
 - You are familiar with executing Linux commands.
 - ROS 2 background strongly recommended.
-
-### Hardware Requirements
-
-```{include} ../shared/requirements_robot.md
-```
+- [Hardware Requirements](./get-started/requirements_robot.md)
 
 ## Express Setup
 
@@ -1054,7 +1048,7 @@ If the APT package manager is unable to connect to the repositories, follow thes
 :::{toctree}
 :hidden:
 
-../shared/requirements_robot.md
+get-started/requirements_robot.md
 
 :::
 hide_directive-->
