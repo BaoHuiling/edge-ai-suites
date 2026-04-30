@@ -46,7 +46,7 @@ def get_document_embedding_model():
     if _document_embedding_model is None:
         from llama_index.embeddings.huggingface_openvino import OpenVINOEmbedding
 
-        doc_model_path = os.getenv("DOC_EMBEDDING_MODEL", "BAAI/bge-small-en-v1.5")
+        doc_model_path = os.getenv("DOC_EMBEDDING_MODEL", "intfloat/multilingual-e5-small")
         run_device = os.getenv("INGEST_DEVICE", "CPU")
 
         local_path = Path(os.getcwd()).parent / "models" / "openvino" / doc_model_path
@@ -55,12 +55,16 @@ def get_document_embedding_model():
             _document_embedding_model = OpenVINOEmbedding(
                 model_id_or_path=str(local_path),
                 device=run_device,
+                query_instruction="query: ",
+                text_instruction="passage: ",
             )
         else:
             logger.info(f"Converting document embedding model {doc_model_path} to OV IR and saving to {local_path}")
             _document_embedding_model = OpenVINOEmbedding(
                 model_id_or_path=doc_model_path,
                 device=run_device,
+                query_instruction="query: ",
+                text_instruction="passage: ",
             )
             local_path.mkdir(parents=True, exist_ok=True)
             _document_embedding_model._model.save_pretrained(str(local_path))
