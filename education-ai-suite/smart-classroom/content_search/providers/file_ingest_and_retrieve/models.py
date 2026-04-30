@@ -24,7 +24,7 @@ def get_visual_embedding_model():
     if _visual_embedding_model is None:
         from providers.file_ingest_and_retrieve.embedding import get_model_handler, EmbeddingModel
 
-        visual_model_name = os.getenv("VISUAL_EMBEDDING_MODEL", "CLIP/clip-vit-b-16")
+        visual_model_name = os.getenv("VISUAL_EMBEDDING_MODEL", "CLIP/clip-xlm-roberta-base-vit-b-32")
         logger.info(f"Initializing visual embedding model: {visual_model_name}")
 
         handler = get_model_handler(visual_model_name)
