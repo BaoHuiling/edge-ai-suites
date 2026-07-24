@@ -20,6 +20,10 @@ CLEAN_UP_ON_EXIT = config.app.cleanup_on_exit
 CHUNKS_DIR = config.audio_preprocessing.chunk_output_path
 os.makedirs(CHUNKS_DIR, exist_ok=True)
 
+# Optional ffmpeg front-end denoise
+_denoise_cfg = getattr(config.audio_preprocessing, "denoise", None)
+DENOISE_AF = getattr(_denoise_cfg, "af", None) if (_denoise_cfg and getattr(_denoise_cfg, "enabled", False)) else None
+
 FFMPEG_PROCESSES = {}
 
 @atexit.register
@@ -78,14 +82,19 @@ def get_closest_silence(silences, target_time, window=SEARCH_WINDOW):
 def process_audio_segment(audio_path, start_time, end_time, chunk_index):
     chunk_name = f"chunk_{chunk_index}_{uuid4().hex[:6]}.wav"
     chunk_path = os.path.join(CHUNKS_DIR, chunk_name)
+    cmd = [
+        "ffmpeg", "-y", "-i", audio_path,
+        "-ss", str(start_time), "-to", str(end_time),
+    ]
+    if DENOISE_AF:
+        cmd += ["-af", DENOISE_AF]
+    cmd += [
+        "-ar", "16000", "-ac", "1",
+        "-c:a", "pcm_s16le", "-vn",
+        chunk_path
+    ]
     subprocess.run(
-        [
-            "ffmpeg", "-y", "-i", audio_path,
-            "-ss", str(start_time), "-to", str(end_time),
-            "-ar", "16000", "-ac", "1",
-            "-c:a", "pcm_s16le", "-vn",
-            chunk_path
-        ],
+        cmd,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
         encoding="utf-8",

@@ -444,6 +444,9 @@ audio_preprocessing:
   silence_duration: 0.3   # minimum silence length in seconds
   search_window_sec: 1    # how far to look for silence if no silence exactly at chunk boundary
   chunk_output_path: chunks/
+  denoise:
+    enabled: true
+    af: "highpass=f=80,lowpass=f=7600,afftdn"
 
 audio_util:
   max_size_mb: 300
