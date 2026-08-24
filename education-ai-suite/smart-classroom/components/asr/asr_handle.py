@@ -112,6 +112,7 @@ class AsrHandler:
         from components.asr.openai.whisper import Whisper as OA_Whisper
         from components.asr.openvino.whisper import Whisper as OV_Whisper
         from components.asr.funasr.paraformer import Paraformer
+        from components.asr.qwen.qwen3_asr import Qwen3ASR
 
         provider = self.provider.lower()
         model_name = self.model_name.lower()
@@ -133,6 +134,8 @@ class AsrHandler:
             return OV_Whisper(model_name, device.upper(), None, threads_limit)
         elif provider == "funasr" and "paraformer" in model_name:
             return Paraformer(model_name, device, None)
+        elif provider == "qwen" and "qwen3-asr" in model_name:
+            return Qwen3ASR(model_name, device, None)
         else:
             raise ValueError(f"Unsupported ASR provider/model: {provider}/{model_name}")
 
@@ -177,6 +180,14 @@ class AsrHandler:
                 return
 
             logger.info("Shutting down ASR...")
+            # Providers backed by a subprocess (Qwen3-ASR) must be told to stop;
+            # dropping the reference alone would leak a warm worker holding the weights.
+            closer = getattr(self._processor, "close", None)
+            if callable(closer):
+                try:
+                    closer()
+                except Exception as e:
+                    logger.warning(f"Error closing ASR processor: {e}")
             self._processor = None
             self._runner = None
             self.state = CapabilityState.UNLOADED

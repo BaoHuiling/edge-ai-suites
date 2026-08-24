@@ -24,8 +24,8 @@ monitoring:
 
 models:
   asr:
-    provider: openai # openvino, funasr and openai supported
-    name: whisper-small  # can be (whisper-base, whisper-small etc) or paraformer-zh
+    provider: openai # openvino, funasr, openai and qwen supported
+    name: whisper-small  # (whisper-base, whisper-small etc), paraformer-zh, or Qwen3-ASR-0.6B / Qwen3-ASR-1.7B
     device: CPU # CPU Recommended
     temperature: 0.0
     diarization: False # requires manual HF token setup, see docs/user-guide/advance-setup-guide.md#f-speaker-diarization-setup-optional
